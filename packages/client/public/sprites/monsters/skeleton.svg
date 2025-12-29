@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        <!-- Skull -->
+        <ellipse cx="32" cy="24" rx="16" ry="14" fill="#ddddcc" stroke="#000" stroke-width="2"/>
+        <!-- Eye sockets -->
+        <ellipse cx="24" cy="22" rx="5" ry="6" fill="#000"/>
+        <ellipse cx="40" cy="22" rx="5" ry="6" fill="#000"/>
+        <!-- Eye glow -->
+        <circle cx="24" cy="22" r="2" fill="#f44"/>
+        <circle cx="40" cy="22" r="2" fill="#f44"/>
+        <!-- Nose -->
+        <polygon points="32,28 28,34 36,34" fill="#000"/>
+        <!-- Teeth -->
+        <rect x="22" y="36" width="20" height="8" fill="#ddddcc" stroke="#000" stroke-width="1"/>
+        <line x1="26" y1="36" x2="26" y2="44" stroke="#000" stroke-width="1"/>
+        <line x1="30" y1="36" x2="30" y2="44" stroke="#000" stroke-width="1"/>
+        <line x1="34" y1="36" x2="34" y2="44" stroke="#000" stroke-width="1"/>
+        <line x1="38" y1="36" x2="38" y2="44" stroke="#000" stroke-width="1"/>
+        <!-- Ribs -->
+        <path d="M 20 48 Q 32 52 44 48" fill="none" stroke="#ddddcc" stroke-width="3"/>
+        <path d="M 22 54 Q 32 58 42 54" fill="none" stroke="#ddddcc" stroke-width="3"/>
+      </svg>

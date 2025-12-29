@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+    <!-- Body -->
+    <ellipse cx="32" cy="44" rx="14" ry="16" fill="#44aa44" stroke="#000" stroke-width="2"/>
+    <!-- Head -->
+    <circle cx="32" cy="20" r="12" fill="#ffd8b0" stroke="#000" stroke-width="1"/>
+    <!-- Helmet/Hair -->
+    <path d="M 20 20 Q 20 8 32 8 Q 44 8 44 20" fill="#44aa44" stroke="#000" stroke-width="1"/>
+    <!-- Eyes -->
+    <circle cx="27" cy="18" r="2" fill="#000"/>
+    <circle cx="37" cy="18" r="2" fill="#000"/>
+    <!-- Mouth -->
+    <path d="M 28 24 Q 32 28 36 24" fill="none" stroke="#000" stroke-width="1"/>
+    <!-- Weapon -->
+    <path d="M 48 16 Q 56 32 48 48" fill="none" stroke="#654" stroke-width="3"/>
+                   <line x1="48" y1="16" x2="48" y2="48" stroke="#876" stroke-width="1"/>
+  </svg>

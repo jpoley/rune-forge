@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        <!-- Body -->
+        <ellipse cx="32" cy="38" rx="22" ry="22" fill="#556633" stroke="#000" stroke-width="2"/>
+        <!-- Tusks -->
+        <polygon points="18,44 14,56 22,48" fill="#fff" stroke="#000" stroke-width="1"/>
+        <polygon points="46,44 50,56 42,48" fill="#fff" stroke="#000" stroke-width="1"/>
+        <!-- Eyes -->
+        <circle cx="22" cy="30" r="5" fill="#ff0" stroke="#000" stroke-width="1"/>
+        <circle cx="42" cy="30" r="5" fill="#ff0" stroke="#000" stroke-width="1"/>
+        <circle cx="22" cy="30" r="2" fill="#f00"/>
+        <circle cx="42" cy="30" r="2" fill="#f00"/>
+        <!-- Brow -->
+        <path d="M 14 24 L 30 28" fill="none" stroke="#000" stroke-width="3"/>
+        <path d="M 50 24 L 34 28" fill="none" stroke="#000" stroke-width="3"/>
+      </svg>

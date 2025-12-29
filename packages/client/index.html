@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rune Forge</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0e0e0;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #game-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* UI Overlay */
+    #ui-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+    }
+
+    #ui-overlay > * {
+      pointer-events: auto;
+    }
+
+    /* Initiative Tracker */
+    #initiative-tracker {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 150px;
+    }
+
+    #initiative-tracker h3 {
+      margin-bottom: 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #888;
+    }
+
+    .initiative-entry {
+      padding: 6px 8px;
+      margin: 4px 0;
+      border-radius: 4px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .initiative-entry.active {
+      background: #2d5a27;
+      border: 1px solid #4a9;
+    }
+
+    .initiative-entry.player {
+      color: #8cf;
+    }
+
+    .initiative-entry.monster {
+      color: #f88;
+    }
+
+    /* Selected Unit Panel */
+    #unit-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 180px;
+    }
+
+    #unit-panel .unit-name {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    #unit-panel .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+
+    .hp-bar {
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .hp-bar-fill {
+      height: 100%;
+      background: linear-gradient(to right, #c44, #4c4);
+      transition: width 0.3s ease;
+    }
+
+    /* Action Bar */
+    #action-bar {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .action-button {
+      padding: 12px 24px;
+      border: 1px solid #555;
+      border-radius: 6px;
+      background: #2a2a3a;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-button:hover:not(:disabled) {
+      background: #3a3a4a;
+      border-color: #777;
+    }
+
+    .action-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .action-button.active {
+      background: #4a6;
+      border-color: #6c8;
+    }
+
+    /* Combat Log */
+    #combat-log {
+      position: absolute;
+      bottom: 70px;
+      left: 10px;
+      width: 300px;
+      max-height: 150px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    .log-entry {
+      padding: 2px 0;
+      border-bottom: 1px solid #222;
+    }
+
+    .log-entry.damage { color: #f88; }
+    .log-entry.move { color: #8cf; }
+    .log-entry.turn { color: #fc8; }
+    .log-entry.victory { color: #4f4; font-weight: bold; }
+    .log-entry.defeat { color: #f44; font-weight: bold; }
+
+    /* Start Screen */
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 100;
+    }
+
+    #start-screen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #f80, #f08);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    #start-screen .menu-button {
+      margin: 10px;
+      padding: 15px 40px;
+      font-size: 18px;
+      border: 2px solid #555;
+      border-radius: 8px;
+      background: #2a2a3a;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    #start-screen .menu-button:hover {
+      background: #3a3a4a;
+      border-color: #888;
+      transform: scale(1.05);
+    }
+
+    /* Loading */
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+    }
+
+    /* Character Selection Screen */
+    #character-select {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 100;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    #character-select h2 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      color: #f80;
+    }
+
+    #character-select .subtitle {
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      max-width: 1200px;
+      width: 100%;
+      margin-bottom: 30px;
+    }
+
+    .character-card {
+      background: #2a2a3a;
+      border: 2px solid #444;
+      border-radius: 12px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .character-card:hover {
+      border-color: #888;
+      transform: translateY(-3px);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    }
+
+    .character-card.selected {
+      border-color: #4a4;
+      background: #2a3a2a;
+    }
+
+    .character-card .sprite-container {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 10px;
+      background: #1a1a2e;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .character-card .sprite-container img {
+      max-width: 100%;
+      max-height: 100%;
+      image-rendering: pixelated;
+    }
+
+    .character-card .sprite-placeholder {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+
+    .character-card .name {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .character-card .description {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 10px;
+      min-height: 40px;
+    }
+
+    .character-card .stats {
+      font-size: 11px;
+      color: #aaa;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+    }
+
+    .character-card .stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 5px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 3px;
+    }
+
+    .monster-section {
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .monster-section h3 {
+      font-size: 20px;
+      color: #f44;
+      margin-bottom: 10px;
+    }
+
+    .monster-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .monster-card {
+      background: #3a2a2a;
+      border: 2px solid #533;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .monster-card:hover {
+      border-color: #866;
+    }
+
+    .monster-card.selected {
+      border-color: #a44;
+      background: #4a2a2a;
+    }
+
+    .monster-card .sprite-container {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 8px;
+      background: #1a1a1e;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .monster-card .sprite-placeholder {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+    }
+
+    .monster-card .name {
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    #start-battle-btn {
+      padding: 15px 50px;
+      font-size: 20px;
+      border: 2px solid #4a4;
+      border-radius: 8px;
+      background: #2a4a2a;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+
+    #start-battle-btn:hover:not(:disabled) {
+      background: #3a5a3a;
+      transform: scale(1.05);
+    }
+
+    #start-battle-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .selection-info {
+      color: #888;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    /* Turn Timer */
+    #turn-timer {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #444;
+      border-radius: 8px;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+    }
+
+    #timer-label {
+      color: #888;
+    }
+
+    #timer-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #4f4;
+      min-width: 30px;
+      text-align: center;
+    }
+
+    /* Pause Button */
+    .pause-btn {
+      background: #4a3a2a !important;
+      border-color: #654 !important;
+    }
+
+    .pause-btn:hover:not(:disabled) {
+      background: #5a4a3a !important;
+    }
+
+    /* Pause Overlay */
+    #pause-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .pause-content {
+      text-align: center;
+      background: #2a2a3a;
+      border: 2px solid #555;
+      border-radius: 16px;
+      padding: 40px 60px;
+    }
+
+    .pause-content h2 {
+      font-size: 48px;
+      color: #fa0;
+      margin-bottom: 10px;
+    }
+
+    .pause-content p {
+      color: #888;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="game-container">
+      <div id="canvas-container"></div>
+      <div id="ui-overlay">
+        <div id="initiative-tracker">
+          <h3>Turn Order</h3>
+          <div id="initiative-list"></div>
+        </div>
+
+        <div id="unit-panel" style="display: none;">
+          <div class="unit-name" id="unit-name"></div>
+          <div class="stat-row">
+            <span>HP</span>
+            <span id="unit-hp">-/-</span>
+          </div>
+          <div class="hp-bar">
+            <div class="hp-bar-fill" id="unit-hp-bar"></div>
+          </div>
+          <div class="stat-row">
+            <span>Attack</span>
+            <span id="unit-attack">-</span>
+          </div>
+          <div class="stat-row">
+            <span>Defense</span>
+            <span id="unit-defense">-</span>
+          </div>
+        </div>
+
+        <div id="turn-timer" style="display: none;">
+          <span id="timer-label">Time:</span>
+          <span id="timer-value">15</span>
+        </div>
+
+        <div id="action-bar" style="display: none;">
+          <button class="action-button" id="btn-move">Move</button>
+          <button class="action-button" id="btn-attack">Attack</button>
+          <button class="action-button" id="btn-end-turn">End Turn</button>
+          <button class="action-button pause-btn" id="btn-pause">⏸ Pause</button>
+        </div>
+
+        <div id="pause-overlay" style="display: none;">
+          <div class="pause-content">
+            <h2>⏸ PAUSED</h2>
+            <p>Press ESC or P to resume</p>
+            <button class="menu-button" id="btn-resume">Resume Game</button>
+          </div>
+        </div>
+
+        <div id="combat-log"></div>
+      </div>
+
+      <div id="start-screen">
+        <h1>⚔️ Rune Forge</h1>
+        <button class="menu-button" id="btn-new-game">New Game</button>
+        <button class="menu-button" id="btn-load-game">Load Game</button>
+      </div>
+
+      <div id="character-select">
+        <h2>⚔️ Choose Your Hero</h2>
+        <p class="subtitle">Select a class to begin your adventure</p>
+        <div class="character-grid" id="character-grid"></div>
+
+        <div class="monster-section">
+          <h3>👹 Select Your Foes (pick 3)</h3>
+          <p class="selection-info">Selected: <span id="monster-count">0</span>/3</p>
+          <div class="monster-grid" id="monster-grid"></div>
+        </div>
+
+        <button id="start-battle-btn" disabled>Begin Battle!</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
