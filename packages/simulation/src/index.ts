@@ -47,10 +47,13 @@ export {
 // Loot system
 export {
   generateLootDrop,
-  getEquippedWeaponBonus,
+  getEquippedWeapon,
+  getEquippedWeaponDamage,
+  getEquippedWeaponRange,
   collectLoot,
   canCollectLoot,
   WEAPON_DEFINITIONS,
   DEFAULT_INVENTORY,
   type WeaponDefinition,
+  type WeaponType,
 } from "./loot.js";

@@ -109,7 +109,9 @@ export interface LootItem {
   readonly type: ItemType;
   readonly name: string;
   readonly value?: number;        // Coin value (gold=10, silver=1 per coin)
-  readonly attackBonus?: number;  // Weapon damage bonus
+  readonly damage?: number;       // Weapon base damage
+  readonly range?: number;        // Weapon attack range in tiles
+  readonly weaponType?: "melee" | "ranged";
 }
 
 export interface LootDrop {

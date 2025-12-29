@@ -70,7 +70,7 @@ export class GameUI {
   };
 
   // Available weapons for selection
-  private availableWeapons: Array<{ id: string; name: string; attackBonus: number }> = [];
+  private availableWeapons: Array<{ id: string; name: string; damage: number; range: number }> = [];
 
   constructor() {
     this.startScreen = document.getElementById("start-screen")!;
@@ -250,11 +250,12 @@ export class GameUI {
   /**
    * Update the available weapons for selection.
    */
-  updateWeaponOptions(weapons: Array<{ id: string; name: string; attackBonus?: number }>, equippedId: string | null): void {
+  updateWeaponOptions(weapons: Array<{ id: string; name: string; damage?: number; range?: number }>, equippedId: string | null): void {
     this.availableWeapons = weapons.map(w => ({
       id: w.id,
       name: w.name,
-      attackBonus: w.attackBonus ?? 0,
+      damage: w.damage ?? 0,
+      range: w.range ?? 1,
     }));
     this.settings.equippedWeaponId = equippedId;
     this.renderWeaponSelector();
@@ -296,7 +297,8 @@ export class GameUI {
     for (const weapon of this.availableWeapons) {
       const option = document.createElement("option");
       option.value = weapon.id;
-      option.textContent = `${weapon.name} (+${weapon.attackBonus})`;
+      const rangeText = weapon.range > 1 ? `, R${weapon.range}` : "";
+      option.textContent = `${weapon.name} (${weapon.damage}${rangeText})`;
       if (weapon.id === this.settings.equippedWeaponId) {
         option.selected = true;
       }
@@ -338,10 +340,10 @@ export class GameUI {
       nameSpan.textContent = weapon.name;
       btn.appendChild(nameSpan);
 
-      const bonusSpan = document.createElement("span");
-      bonusSpan.className = "bonus";
-      bonusSpan.textContent = `+${weapon.attackBonus}`;
-      btn.appendChild(bonusSpan);
+      const statsSpan = document.createElement("span");
+      statsSpan.className = "bonus";
+      statsSpan.textContent = `${weapon.damage} dmg${weapon.range > 1 ? `, ${weapon.range} rng` : ""}`;
+      btn.appendChild(statsSpan);
 
       if (!isOwned) {
         btn.addEventListener("click", () => {
@@ -511,10 +513,11 @@ export class GameUI {
       name.textContent = weapon.name;
       info.appendChild(name);
 
-      const bonus = document.createElement("span");
-      bonus.className = "shop-item-bonus";
-      bonus.textContent = `+${weapon.attackBonus} Attack`;
-      info.appendChild(bonus);
+      const stats = document.createElement("span");
+      stats.className = "shop-item-bonus";
+      const rangeText = weapon.range > 1 ? ` | Range ${weapon.range}` : "";
+      stats.textContent = `${weapon.damage} Dmg${rangeText}`;
+      info.appendChild(stats);
 
       item.appendChild(info);
 
@@ -911,7 +914,8 @@ export class GameUI {
       if (inventory.equippedWeaponId) {
         const weapon = inventory.weapons.find(w => w.id === inventory.equippedWeaponId);
         if (weapon) {
-          weaponEl.textContent = `${weapon.name} (+${weapon.attackBonus || 0})`;
+          const rangeText = weapon.range && weapon.range > 1 ? `, ${weapon.range} range` : "";
+          weaponEl.textContent = `${weapon.name} (${weapon.damage || 0} dmg${rangeText})`;
         } else {
           weaponEl.textContent = "None";
         }

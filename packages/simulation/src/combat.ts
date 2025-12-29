@@ -32,7 +32,7 @@ import type {
 } from "./types.js";
 import { findPath, getReachablePositions } from "./pathfinding.js";
 import { getDistance, hasLineOfSight, isAdjacent } from "./line-of-sight.js";
-import { generateLootDrop, getEquippedWeaponBonus, collectLoot, canCollectLoot } from "./loot.js";
+import { generateLootDrop, getEquippedWeaponDamage, getEquippedWeaponRange, collectLoot, canCollectLoot } from "./loot.js";
 
 // =============================================================================
 // State Management (Immutable Updates)
@@ -473,9 +473,10 @@ function executeAttackAction(
   events.push(attackEvent);
 
   // Calculate damage (simple formula for v1)
-  // Add weapon bonus for player attacks
-  const weaponBonus = attacker.type === "player" ? getEquippedWeaponBonus(state.playerInventory) : 0;
-  const baseDamage = attacker.stats.attack + weaponBonus;
+  // For player: base attack + weapon damage
+  // For monster: base attack only
+  const weaponDamage = attacker.type === "player" ? getEquippedWeaponDamage(state.playerInventory) : 0;
+  const baseDamage = attacker.stats.attack + weaponDamage;
   const mitigation = Math.floor(target.stats.defense / 2);
   const damage = Math.max(1, baseDamage - mitigation); // Always at least 1 damage
 
@@ -716,6 +717,11 @@ export function getValidAttackTargets(state: GameState): Unit[] {
   const unit = units.find(u => u.id === combat.turnState!.unitId);
   if (!unit) return [];
 
+  // For player, use weapon range if equipped; otherwise use base attack range
+  const attackRange = unit.type === "player"
+    ? getEquippedWeaponRange(state.playerInventory)
+    : unit.stats.attackRange;
+
   return units.filter(target => {
     if (target.id === unit.id) return false;
     if (target.type === unit.type) return false;
@@ -723,11 +729,12 @@ export function getValidAttackTargets(state: GameState): Unit[] {
 
     const distance = getDistance(unit.position, target.position);
 
-    if (unit.stats.attackRange === 1) {
+    // Melee range (1) requires adjacency
+    if (attackRange === 1) {
       return isAdjacent(unit.position, target.position);
     }
 
-    if (distance > unit.stats.attackRange) return false;
+    if (distance > attackRange) return false;
 
     return hasLineOfSight(unit.position, target.position, map);
   });

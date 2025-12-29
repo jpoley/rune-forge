@@ -6,23 +6,36 @@
 import type { LootDrop, LootItem, PlayerInventory, Position } from "./types.js";
 
 // =============================================================================
-// Weapon Definitions
+// Weapon Definitions (D&D-style)
 // =============================================================================
+
+export type WeaponType = "melee" | "ranged";
 
 export interface WeaponDefinition {
   readonly id: string;
   readonly name: string;
-  readonly attackBonus: number;
+  readonly damage: number;       // Base damage (like D&D dice average)
+  readonly range: number;        // Attack range in tiles (1 = melee adjacent)
+  readonly weaponType: WeaponType;
   readonly rarity: "common" | "uncommon" | "rare";
-  readonly dropWeight: number; // Higher = more likely to drop
-  readonly price: number; // Gold price at merchant
+  readonly dropWeight: number;   // Higher = more likely to drop
+  readonly price: number;        // Gold price at merchant
 }
 
+// D&D-inspired damage values (based on dice averages):
+// Dagger: 1d4 = ~2, Short Sword: 1d6 = ~3, Longsword: 1d8 = ~4
+// Shortbow: 1d6 = ~3 (range 5), Longbow: 1d8 = ~4 (range 8)
 export const WEAPON_DEFINITIONS: ReadonlyArray<WeaponDefinition> = [
-  { id: "rusty_dagger", name: "Rusty Dagger", attackBonus: 1, rarity: "common", dropWeight: 40, price: 10 },
-  { id: "iron_sword", name: "Iron Sword", attackBonus: 2, rarity: "common", dropWeight: 30, price: 25 },
-  { id: "steel_blade", name: "Steel Blade", attackBonus: 3, rarity: "uncommon", dropWeight: 20, price: 50 },
-  { id: "enchanted_axe", name: "Enchanted Axe", attackBonus: 5, rarity: "rare", dropWeight: 10, price: 100 },
+  // Melee weapons (range 1 = adjacent only)
+  { id: "dagger", name: "Dagger", damage: 2, range: 1, weaponType: "melee", rarity: "common", dropWeight: 40, price: 5 },
+  { id: "short_sword", name: "Short Sword", damage: 3, range: 1, weaponType: "melee", rarity: "common", dropWeight: 30, price: 10 },
+  { id: "longsword", name: "Longsword", damage: 4, range: 1, weaponType: "melee", rarity: "common", dropWeight: 20, price: 25 },
+  { id: "battleaxe", name: "Battleaxe", damage: 5, range: 1, weaponType: "melee", rarity: "uncommon", dropWeight: 15, price: 40 },
+  { id: "greatsword", name: "Greatsword", damage: 6, range: 1, weaponType: "melee", rarity: "uncommon", dropWeight: 10, price: 75 },
+  // Ranged weapons
+  { id: "shortbow", name: "Shortbow", damage: 3, range: 5, weaponType: "ranged", rarity: "common", dropWeight: 25, price: 15 },
+  { id: "longbow", name: "Longbow", damage: 4, range: 8, weaponType: "ranged", rarity: "uncommon", dropWeight: 15, price: 50 },
+  { id: "crossbow", name: "Crossbow", damage: 5, range: 6, weaponType: "ranged", rarity: "uncommon", dropWeight: 10, price: 60 },
 ] as const;
 
 // =============================================================================
@@ -105,7 +118,9 @@ export function generateLootDrop(
       id: `weapon_${lootIdCounter++}`,
       type: "weapon",
       name: weapon.name,
-      attackBonus: weapon.attackBonus,
+      damage: weapon.damage,
+      range: weapon.range,
+      weaponType: weapon.weaponType,
     });
   }
 
@@ -144,15 +159,39 @@ function selectRandomWeapon(random: () => number): WeaponDefinition {
 // =============================================================================
 
 /**
- * Get the attack bonus from the equipped weapon.
+ * Get the equipped weapon's stats.
  */
-export function getEquippedWeaponBonus(inventory: PlayerInventory): number {
+export function getEquippedWeapon(inventory: PlayerInventory): { damage: number; range: number; weaponType: "melee" | "ranged" } | null {
   if (!inventory.equippedWeaponId) {
-    return 0;
+    return null;
   }
 
   const weapon = inventory.weapons.find(w => w.id === inventory.equippedWeaponId);
-  return weapon?.attackBonus ?? 0;
+  if (!weapon) return null;
+
+  return {
+    damage: weapon.damage ?? 0,
+    range: weapon.range ?? 1,
+    weaponType: weapon.weaponType ?? "melee",
+  };
+}
+
+/**
+ * Get the attack damage from the equipped weapon.
+ * Returns 0 if no weapon equipped (unarmed).
+ */
+export function getEquippedWeaponDamage(inventory: PlayerInventory): number {
+  const weapon = getEquippedWeapon(inventory);
+  return weapon?.damage ?? 0;
+}
+
+/**
+ * Get the attack range from the equipped weapon.
+ * Returns 1 if no weapon equipped (melee range).
+ */
+export function getEquippedWeaponRange(inventory: PlayerInventory): number {
+  const weapon = getEquippedWeapon(inventory);
+  return weapon?.range ?? 1;
 }
 
 /**
@@ -178,9 +217,9 @@ export function collectLoot(
         break;
       case "weapon":
         weapons.push(item);
-        // Auto-equip if better than current
-        const currentBonus = getEquippedWeaponBonus({ ...inventory, weapons, equippedWeaponId });
-        if ((item.attackBonus ?? 0) > currentBonus) {
+        // Auto-equip if better damage than current
+        const currentDamage = getEquippedWeaponDamage({ ...inventory, weapons, equippedWeaponId });
+        if ((item.damage ?? 0) > currentDamage) {
           equippedWeaponId = item.id;
         }
         break;

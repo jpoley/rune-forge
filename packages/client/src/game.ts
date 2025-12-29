@@ -136,7 +136,9 @@ export class GameController {
       id: `dm_${weaponId}_${Date.now()}`,
       type: "weapon" as const,
       name: weaponDef.name,
-      attackBonus: weaponDef.attackBonus,
+      damage: weaponDef.damage,
+      range: weaponDef.range,
+      weaponType: weaponDef.weaponType,
     };
 
     // Add to inventory
@@ -148,15 +150,15 @@ export class GameController {
         weapons: newWeapons,
         // Auto-equip if better than current
         equippedWeaponId: !this.gameState.playerInventory.equippedWeaponId ||
-          weaponDef.attackBonus > (this.gameState.playerInventory.weapons.find(
+          weaponDef.damage > (this.gameState.playerInventory.weapons.find(
             w => w.id === this.gameState!.playerInventory.equippedWeaponId
-          )?.attackBonus ?? 0)
+          )?.damage ?? 0)
           ? newWeapon.id
           : this.gameState.playerInventory.equippedWeaponId,
       },
     };
 
-    this.ui.addLogEntry(`🎲 DM grants: ${weaponDef.name} (+${weaponDef.attackBonus})`, "victory");
+    this.ui.addLogEntry(`🎲 DM grants: ${weaponDef.name} (${weaponDef.damage} dmg, ${weaponDef.range} range)`, "victory");
     this.ui.updateInventory(this.gameState.playerInventory);
     this.updateUI();
   }
@@ -212,7 +214,9 @@ export class GameController {
       id: `shop_${weaponId}_${Date.now()}`,
       type: "weapon" as const,
       name: weaponDef.name,
-      attackBonus: weaponDef.attackBonus,
+      damage: weaponDef.damage,
+      range: weaponDef.range,
+      weaponType: weaponDef.weaponType,
     };
 
     // Deduct gold and add weapon
@@ -225,9 +229,9 @@ export class GameController {
         weapons: newWeapons,
         // Auto-equip if better than current
         equippedWeaponId: !this.gameState.playerInventory.equippedWeaponId ||
-          weaponDef.attackBonus > (this.gameState.playerInventory.weapons.find(
+          weaponDef.damage > (this.gameState.playerInventory.weapons.find(
             w => w.id === this.gameState!.playerInventory.equippedWeaponId
-          )?.attackBonus ?? 0)
+          )?.damage ?? 0)
           ? newWeapon.id
           : this.gameState.playerInventory.equippedWeaponId,
       },
@@ -1239,7 +1243,8 @@ export class GameController {
     const weapons = this.gameState.playerInventory.weapons.map(w => ({
       id: w.id,
       name: w.name,
-      attackBonus: w.attackBonus ?? 0,
+      damage: w.damage ?? 0,
+      range: w.range ?? 1,
     }));
     this.ui.updateWeaponOptions(weapons, this.gameState.playerInventory.equippedWeaponId);
 
