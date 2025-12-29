@@ -21,7 +21,7 @@ function manhattanDistance(a: Position, b: Position): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-function getNeighbors(pos: Position, map: GameMap): Position[] {
+function getNeighbors(pos: Position, _map: GameMap): Position[] {
   const neighbors: Position[] = [];
   const directions = [
     { x: 0, y: -1 }, // up
@@ -31,17 +31,8 @@ function getNeighbors(pos: Position, map: GameMap): Position[] {
   ];
 
   for (const dir of directions) {
-    const newPos = { x: pos.x + dir.x, y: pos.y + dir.y };
-
-    // Check bounds
-    if (
-      newPos.x >= 0 &&
-      newPos.x < map.size.width &&
-      newPos.y >= 0 &&
-      newPos.y < map.size.height
-    ) {
-      neighbors.push(newPos);
-    }
+    // Infinite map - all positions are valid
+    neighbors.push({ x: pos.x + dir.x, y: pos.y + dir.y });
   }
 
   return neighbors;
@@ -52,8 +43,8 @@ function isWalkable(
   map: GameMap,
   occupiedPositions: Set<string>
 ): boolean {
-  const tile = map.tiles[pos.y]?.[pos.x];
-  if (!tile || !tile.walkable) {
+  const tile = map.getTile(pos.x, pos.y);
+  if (!tile.walkable) {
     return false;
   }
 
@@ -90,8 +81,8 @@ export function findPath(
   }
 
   // Check if goal is walkable (or occupied by target for attacks)
-  const goalTile = map.tiles[goal.y]?.[goal.x];
-  if (!goalTile || !goalTile.walkable) {
+  const goalTile = map.getTile(goal.x, goal.y);
+  if (!goalTile.walkable) {
     return null;
   }
 

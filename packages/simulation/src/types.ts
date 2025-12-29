@@ -32,7 +32,15 @@ export type TileType =
   | "wall"
   | "pillar"
   | "rock"
+  | "rock_mossy"
+  | "rock_large"
+  | "boulder"
+  | "stone_pile"
   | "tree"
+  | "tree_pine"
+  | "tree_oak"
+  | "tree_dead"
+  | "tree_small"
   | "bush";
 
 export interface Tile {
@@ -51,9 +59,19 @@ export const TILE_DEFINITIONS: Record<TileType, Omit<Tile, "type">> = {
   water_deep: { walkable: false, blocksLos: false },
   wall: { walkable: false, blocksLos: true },
   pillar: { walkable: false, blocksLos: true },
+  // 5 rock types
   rock: { walkable: false, blocksLos: true },
+  rock_mossy: { walkable: false, blocksLos: true },
+  rock_large: { walkable: false, blocksLos: true },
+  boulder: { walkable: false, blocksLos: true },
+  stone_pile: { walkable: false, blocksLos: true },
+  // 5 tree types
   tree: { walkable: false, blocksLos: true },
-  bush: { walkable: false, blocksLos: false },
+  tree_pine: { walkable: false, blocksLos: true },
+  tree_oak: { walkable: false, blocksLos: true },
+  tree_dead: { walkable: false, blocksLos: true },
+  tree_small: { walkable: false, blocksLos: true },
+  bush: { walkable: true, blocksLos: false },
 } as const;
 
 // =============================================================================
@@ -81,15 +99,46 @@ export interface Unit {
 }
 
 // =============================================================================
+// Loot & Inventory
+// =============================================================================
+
+export type ItemType = "gold" | "silver" | "weapon";
+
+export interface LootItem {
+  readonly id: string;
+  readonly type: ItemType;
+  readonly name: string;
+  readonly value?: number;        // Coin value (gold=10, silver=1 per coin)
+  readonly attackBonus?: number;  // Weapon damage bonus
+}
+
+export interface LootDrop {
+  readonly id: string;
+  readonly position: Position;
+  readonly items: ReadonlyArray<LootItem>;
+}
+
+export interface PlayerInventory {
+  readonly gold: number;
+  readonly silver: number;
+  readonly weapons: ReadonlyArray<LootItem>;
+  readonly equippedWeaponId: string | null;
+}
+
+// =============================================================================
 // Map
 // =============================================================================
 
+/**
+ * Infinite procedural map - tiles are generated on-demand using the seed.
+ * No boundaries - any coordinate is valid.
+ */
 export interface GameMap {
   readonly id: string;
   readonly name: string;
-  readonly size: GridSize;
-  readonly tiles: ReadonlyArray<ReadonlyArray<Tile>>; // [y][x] access
-  readonly seed?: number; // For reproducible random generation
+  readonly seed: number; // Required for procedural generation
+  /** Get tile at any coordinate - generates on demand */
+  getTile(x: number, y: number): Tile;
 }
 
 // =============================================================================
@@ -129,13 +178,15 @@ export interface GameState {
   readonly units: ReadonlyArray<Unit>;
   readonly combat: CombatState;
   readonly turnHistory: ReadonlyArray<GameEvent>; // For replay/debugging
+  readonly lootDrops: ReadonlyArray<LootDrop>;
+  readonly playerInventory: PlayerInventory;
 }
 
 // =============================================================================
 // Actions (Player/AI Inputs)
 // =============================================================================
 
-export type ActionType = "move" | "attack" | "end_turn";
+export type ActionType = "move" | "attack" | "end_turn" | "collect_loot";
 
 export interface MoveAction {
   readonly type: "move";
@@ -154,7 +205,13 @@ export interface EndTurnAction {
   readonly unitId: string;
 }
 
-export type GameAction = MoveAction | AttackAction | EndTurnAction;
+export interface CollectLootAction {
+  readonly type: "collect_loot";
+  readonly unitId: string;
+  readonly lootDropId: string;
+}
+
+export type GameAction = MoveAction | AttackAction | EndTurnAction | CollectLootAction;
 
 // =============================================================================
 // Events (Simulation Outputs)
@@ -169,7 +226,9 @@ export type EventType =
   | "unit_damaged"
   | "unit_defeated"
   | "turn_ended"
-  | "combat_ended";
+  | "combat_ended"
+  | "loot_dropped"
+  | "loot_collected";
 
 export interface BaseEvent {
   readonly timestamp: number;
@@ -226,6 +285,19 @@ export interface CombatEndedEvent extends BaseEvent {
   readonly result: "victory" | "defeat";
 }
 
+export interface LootDroppedEvent extends BaseEvent {
+  readonly type: "loot_dropped";
+  readonly lootDrop: LootDrop;
+  readonly fromUnitId: string;
+}
+
+export interface LootCollectedEvent extends BaseEvent {
+  readonly type: "loot_collected";
+  readonly lootDropId: string;
+  readonly items: ReadonlyArray<LootItem>;
+  readonly collectedBy: string;
+}
+
 export type GameEvent =
   | CombatStartedEvent
   | RoundStartedEvent
@@ -235,7 +307,9 @@ export type GameEvent =
   | UnitDamagedEvent
   | UnitDefeatedEvent
   | TurnEndedEvent
-  | CombatEndedEvent;
+  | CombatEndedEvent
+  | LootDroppedEvent
+  | LootCollectedEvent;
 
 // =============================================================================
 // Save Data

@@ -202,6 +202,54 @@
     .log-entry.victory { color: #4f4; font-weight: bold; }
     .log-entry.defeat { color: #f44; font-weight: bold; }
 
+    /* Inventory Panel */
+    #inventory-panel {
+      position: absolute;
+      bottom: 70px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 160px;
+      display: none;
+    }
+
+    #inventory-panel h4 {
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #444;
+      padding-bottom: 6px;
+    }
+
+    .inventory-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 6px 0;
+      font-size: 13px;
+    }
+
+    .inventory-row .label {
+      color: #aaa;
+    }
+
+    .inventory-row .gold-value {
+      color: #ffd700;
+      font-weight: bold;
+    }
+
+    .inventory-row .silver-value {
+      color: #c0c0c0;
+      font-weight: bold;
+    }
+
+    .inventory-row .weapon-value {
+      color: #8cf;
+    }
+
     /* Start Screen */
     #start-screen {
       position: absolute;
@@ -520,6 +568,381 @@
       color: #888;
       margin-bottom: 20px;
     }
+
+    /* Settings Button */
+    .settings-btn {
+      background: #3a3a4a !important;
+      border-color: #555 !important;
+    }
+
+    .settings-btn:hover:not(:disabled) {
+      background: #4a4a5a !important;
+    }
+
+    /* Settings Panel */
+    #settings-panel {
+      position: absolute;
+      bottom: 70px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid #555;
+      border-radius: 12px;
+      padding: 16px;
+      min-width: 220px;
+      z-index: 50;
+    }
+
+    #settings-panel h3 {
+      font-size: 14px;
+      color: #fa0;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-group {
+      margin-bottom: 16px;
+    }
+
+    .settings-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .settings-label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    /* Speed Selector */
+    .speed-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .speed-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2a2a3a;
+      color: #ccc;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .speed-btn:hover {
+      background: #3a3a4a;
+      border-color: #666;
+    }
+
+    .speed-btn.active {
+      background: #4a6;
+      border-color: #6c8;
+      color: #fff;
+    }
+
+    /* NPC Mode Toggle */
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 26px;
+      background: #333;
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .toggle-switch.active {
+      background: #4a6;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(24px);
+    }
+
+    .toggle-labels {
+      display: flex;
+      flex-direction: column;
+      font-size: 11px;
+    }
+
+    .toggle-labels .current {
+      color: #4f4;
+      font-weight: bold;
+    }
+
+    .toggle-labels .other {
+      color: #666;
+    }
+
+    /* Weapon Selector */
+    .weapon-select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2a2a3a;
+      color: #8cf;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238cf' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 28px;
+    }
+
+    .weapon-select:hover {
+      border-color: #666;
+      background-color: #3a3a4a;
+    }
+
+    .weapon-select:focus {
+      outline: none;
+      border-color: #4a6;
+    }
+
+    .weapon-select option {
+      background: #2a2a3a;
+      color: #e0e0e0;
+      padding: 8px;
+    }
+
+    .no-weapons {
+      color: #666;
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    /* DM Settings */
+    .settings-divider {
+      height: 1px;
+      background: #444;
+      margin: 16px 0;
+    }
+
+    .dm-label {
+      color: #f80 !important;
+    }
+
+    .dm-description {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .dm-weapon-btn {
+      display: block;
+      width: 100%;
+      padding: 6px 10px;
+      margin: 4px 0;
+      font-size: 12px;
+      border: 1px solid #654;
+      border-radius: 4px;
+      background: #3a2a2a;
+      color: #fc8;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+
+    .dm-weapon-btn:hover {
+      background: #4a3a3a;
+      border-color: #876;
+    }
+
+    .dm-weapon-btn .bonus {
+      float: right;
+      color: #4f4;
+    }
+
+    .dm-weapon-btn.owned {
+      opacity: 0.5;
+      cursor: not-allowed;
+      border-color: #333;
+    }
+
+    .dm-weapon-btn.owned::after {
+      content: " ✓";
+      color: #4f4;
+    }
+
+    /* DM Button */
+    .dm-btn {
+      background: #3a2a3a !important;
+      border-color: #654 !important;
+    }
+
+    .dm-btn:hover:not(:disabled) {
+      background: #4a3a4a !important;
+    }
+
+    /* Shop Button */
+    .shop-btn {
+      background: #2a3a2a !important;
+      border-color: #465 !important;
+    }
+
+    .shop-btn:hover:not(:disabled) {
+      background: #3a4a3a !important;
+    }
+
+    /* DM Panel */
+    #dm-panel {
+      position: absolute;
+      bottom: 70px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid #654;
+      border-radius: 12px;
+      padding: 16px;
+      min-width: 200px;
+      z-index: 50;
+    }
+
+    #dm-panel h3 {
+      font-size: 14px;
+      color: #f80;
+      margin-bottom: 12px;
+    }
+
+    .dm-divider {
+      height: 1px;
+      background: #444;
+      margin: 12px 0;
+    }
+
+    .dm-gold-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .dm-gold-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid #654;
+      border-radius: 4px;
+      background: #3a3a2a;
+      color: #ffd700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .dm-gold-btn:hover {
+      background: #4a4a3a;
+      border-color: #876;
+    }
+
+    /* Shop Panel */
+    #shop-panel {
+      position: absolute;
+      bottom: 70px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid #465;
+      border-radius: 12px;
+      padding: 16px;
+      min-width: 240px;
+      z-index: 50;
+    }
+
+    #shop-panel h3 {
+      font-size: 14px;
+      color: #4f4;
+      margin-bottom: 8px;
+    }
+
+    .shop-gold {
+      font-size: 14px;
+      color: #ffd700;
+      margin-bottom: 8px;
+      padding: 6px 10px;
+      background: rgba(255, 215, 0, 0.1);
+      border-radius: 4px;
+    }
+
+    .shop-description {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .shop-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      margin: 4px 0;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2a2a3a;
+    }
+
+    .shop-item-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .shop-item-name {
+      font-size: 13px;
+      color: #8cf;
+    }
+
+    .shop-item-bonus {
+      font-size: 11px;
+      color: #4f4;
+    }
+
+    .shop-buy-btn {
+      padding: 4px 12px;
+      font-size: 12px;
+      border: 1px solid #654;
+      border-radius: 4px;
+      background: #3a3a2a;
+      color: #ffd700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .shop-buy-btn:hover:not(:disabled) {
+      background: #4a4a3a;
+      border-color: #876;
+    }
+
+    .shop-buy-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .shop-buy-btn.owned {
+      background: #2a3a2a;
+      color: #4f4;
+      cursor: default;
+    }
   </style>
 </head>
 <body>
@@ -557,10 +980,80 @@
         </div>
 
         <div id="action-bar" style="display: none;">
+          <button class="action-button dm-btn" id="btn-dm">🎲 DM</button>
+          <button class="action-button shop-btn" id="btn-shop" disabled style="opacity: 0.4;">🏪 Shop</button>
           <button class="action-button" id="btn-move">Move</button>
           <button class="action-button" id="btn-attack">Attack</button>
+          <button class="action-button" id="btn-sleep">💤 Sleep</button>
           <button class="action-button" id="btn-end-turn">End Turn</button>
           <button class="action-button pause-btn" id="btn-pause">⏸ Pause</button>
+          <button class="action-button settings-btn" id="btn-settings">⚙ Settings</button>
+        </div>
+
+        <div id="settings-panel" style="display: none;">
+          <h3>⚙ Settings</h3>
+          <div class="settings-group">
+            <div class="settings-label">Game Speed</div>
+            <div class="speed-selector" id="speed-selector">
+              <button class="speed-btn" data-speed="0.5">0.5x</button>
+              <button class="speed-btn" data-speed="0.75">0.75x</button>
+              <button class="speed-btn" data-speed="1">1x</button>
+              <button class="speed-btn active" data-speed="1.25">1.25x</button>
+              <button class="speed-btn" data-speed="1.5">1.5x</button>
+              <button class="speed-btn" data-speed="1.75">1.75x</button>
+              <button class="speed-btn" data-speed="2">2x</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-label">NPC Turn Mode</div>
+            <div class="toggle-container">
+              <div class="toggle-switch active" id="npc-mode-toggle"></div>
+              <div class="toggle-labels">
+                <span class="current" id="npc-mode-current">Parallel</span>
+                <span class="other" id="npc-mode-other">Click for Sequential</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-label">Defend (Counter-attack)</div>
+            <div class="toggle-container">
+              <div class="toggle-switch active" id="defend-toggle"></div>
+              <div class="toggle-labels">
+                <span class="current" id="defend-current">On</span>
+                <span class="other" id="defend-other">Click to disable</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-label">Equipped Weapon</div>
+            <div id="weapon-selector"></div>
+          </div>
+        </div>
+
+        <div id="dm-panel" style="display: none;">
+          <h3>🎲 DM Options</h3>
+          <div class="dm-description">Give weapons to player</div>
+          <div id="dm-weapon-buttons"></div>
+          <div class="dm-divider"></div>
+          <div class="dm-description">Give gold to player</div>
+          <div class="dm-gold-buttons">
+            <button class="dm-gold-btn" data-amount="10">+10 Gold</button>
+            <button class="dm-gold-btn" data-amount="50">+50 Gold</button>
+            <button class="dm-gold-btn" data-amount="100">+100 Gold</button>
+          </div>
+          <div class="dm-divider"></div>
+          <div class="dm-description">Sleep heal amount</div>
+          <div class="dm-sleep-setting">
+            <input type="number" id="dm-sleep-heal" value="5" min="0" max="100" style="width: 50px; padding: 4px; border-radius: 4px; border: 1px solid #654; background: #2a2a3a; color: #fff;">
+            <span style="margin-left: 8px; color: #aaa;">HP per sleep</span>
+          </div>
+        </div>
+
+        <div id="shop-panel" style="display: none;">
+          <h3>🏪 Warez Merchant</h3>
+          <div class="shop-gold">Your Gold: <span id="shop-gold-display">0</span></div>
+          <div class="shop-description">Buy weapons for gold</div>
+          <div id="shop-weapon-list"></div>
         </div>
 
         <div id="pause-overlay" style="display: none;">
@@ -572,6 +1065,22 @@
         </div>
 
         <div id="combat-log"></div>
+
+        <div id="inventory-panel" style="display: none;">
+          <h4>Inventory</h4>
+          <div class="inventory-row">
+            <span class="label">Gold</span>
+            <span class="gold-value" id="inventory-gold">0</span>
+          </div>
+          <div class="inventory-row">
+            <span class="label">Silver</span>
+            <span class="silver-value" id="inventory-silver">0</span>
+          </div>
+          <div class="inventory-row">
+            <span class="label">Weapon</span>
+            <span class="weapon-value" id="inventory-weapon">None</span>
+          </div>
+        </div>
       </div>
 
       <div id="start-screen">

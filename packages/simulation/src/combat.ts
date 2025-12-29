@@ -6,6 +6,7 @@
 
 import type {
   AttackAction,
+  CollectLootAction,
   CombatEndedEvent,
   CombatStartedEvent,
   CombatState,
@@ -14,6 +15,8 @@ import type {
   GameEvent,
   GameState,
   InitiativeEntry,
+  LootCollectedEvent,
+  LootDroppedEvent,
   MoveAction,
   Position,
   RoundStartedEvent,
@@ -29,6 +32,7 @@ import type {
 } from "./types.js";
 import { findPath, getReachablePositions } from "./pathfinding.js";
 import { getDistance, hasLineOfSight, isAdjacent } from "./line-of-sight.js";
+import { generateLootDrop, getEquippedWeaponBonus, collectLoot, canCollectLoot } from "./loot.js";
 
 // =============================================================================
 // State Management (Immutable Updates)
@@ -255,6 +259,8 @@ export function validateAction(
       return validateAttackAction(action, unit, combat.turnState, state);
     case "end_turn":
       return { valid: true };
+    case "collect_loot":
+      return validateCollectLootAction(action, unit, state);
     default:
       return { valid: false, reason: "Unknown action type" };
   }
@@ -355,6 +361,28 @@ function validateAttackAction(
   return { valid: true };
 }
 
+function validateCollectLootAction(
+  action: CollectLootAction,
+  unit: Unit,
+  state: GameState
+): ValidationResult {
+  // Only players can collect loot
+  if (unit.type !== "player") {
+    return { valid: false, reason: "Only players can collect loot" };
+  }
+
+  const lootDrop = state.lootDrops.find(l => l.id === action.lootDropId);
+  if (!lootDrop) {
+    return { valid: false, reason: "Loot not found" };
+  }
+
+  if (!canCollectLoot(unit.position, lootDrop.position)) {
+    return { valid: false, reason: "Loot is too far away" };
+  }
+
+  return { valid: true };
+}
+
 // =============================================================================
 // Action Execution
 // =============================================================================
@@ -379,6 +407,8 @@ export function executeAction(
       return executeAttackAction(action, state);
     case "end_turn":
       return executeEndTurn(action, state);
+    case "collect_loot":
+      return executeCollectLoot(action, state);
   }
 }
 
@@ -443,7 +473,9 @@ function executeAttackAction(
   events.push(attackEvent);
 
   // Calculate damage (simple formula for v1)
-  const baseDamage = attacker.stats.attack;
+  // Add weapon bonus for player attacks
+  const weaponBonus = attacker.type === "player" ? getEquippedWeaponBonus(state.playerInventory) : 0;
+  const baseDamage = attacker.stats.attack + weaponBonus;
   const mitigation = Math.floor(target.stats.defense / 2);
   const damage = Math.max(1, baseDamage - mitigation); // Always at least 1 damage
 
@@ -461,6 +493,9 @@ function executeAttackAction(
 
   let newUnits = updateUnitStats(state.units, action.targetId, { hp: newHp });
 
+  // Track loot drops to add
+  let newLootDrops = [...state.lootDrops];
+
   // Check for defeat
   if (newHp <= 0) {
     const defeatEvent: UnitDefeatedEvent = {
@@ -470,6 +505,24 @@ function executeAttackAction(
       unitId: action.targetId,
     };
     events.push(defeatEvent);
+
+    // Generate loot drop for defeated monster (only monsters drop loot)
+    if (target.type === "monster") {
+      const lootSeed = Date.now() + target.position.x * 1000 + target.position.y;
+      const lootDrop = generateLootDrop(target.position, lootSeed);
+
+      if (lootDrop) {
+        const lootEvent: LootDroppedEvent = {
+          type: "loot_dropped",
+          timestamp: Date.now(),
+          round: state.combat.round,
+          lootDrop,
+          fromUnitId: target.id,
+        };
+        events.push(lootEvent);
+        newLootDrops = [...newLootDrops, lootDrop];
+      }
+    }
   }
 
   const newTurnState: TurnState = {
@@ -486,6 +539,7 @@ function executeAttackAction(
       turnState: newTurnState,
     },
     turnHistory: [...state.turnHistory, ...events],
+    lootDrops: newLootDrops,
   };
 
   // Check win/lose conditions
@@ -525,6 +579,41 @@ function executeEndTurn(
     state: nextTurnResult.state,
     events: [...events, ...nextTurnResult.events],
   };
+}
+
+function executeCollectLoot(
+  action: CollectLootAction,
+  state: GameState
+): { state: GameState; events: GameEvent[] } {
+  const events: GameEvent[] = [];
+
+  const lootDrop = state.lootDrops.find(l => l.id === action.lootDropId)!;
+
+  // Add loot to inventory
+  const newInventory = collectLoot(state.playerInventory, lootDrop);
+
+  // Create event
+  const collectEvent: LootCollectedEvent = {
+    type: "loot_collected",
+    timestamp: Date.now(),
+    round: state.combat.round,
+    lootDropId: action.lootDropId,
+    items: lootDrop.items,
+    collectedBy: action.unitId,
+  };
+  events.push(collectEvent);
+
+  // Remove loot drop from state
+  const newLootDrops = state.lootDrops.filter(l => l.id !== action.lootDropId);
+
+  const newState: GameState = {
+    ...state,
+    playerInventory: newInventory,
+    lootDrops: newLootDrops,
+    turnHistory: [...state.turnHistory, ...events],
+  };
+
+  return { state: newState, events };
 }
 
 // =============================================================================

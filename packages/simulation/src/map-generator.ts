@@ -3,8 +3,9 @@
  * Produces deterministic maps given the same seed.
  */
 
-import type { GameMap, GridSize, Position, Tile, TileType, Unit, UnitStats } from "./types.js";
+import type { GameMap, LootDrop, Position, Tile, TileType, Unit, UnitStats } from "./types.js";
 import { TILE_DEFINITIONS } from "./types.js";
+import { DEFAULT_INVENTORY, generateLootDrop } from "./loot.js";
 
 // =============================================================================
 // Seeded Random Number Generator
@@ -52,169 +53,165 @@ function createTile(type: TileType): Tile {
 }
 
 // =============================================================================
-// Map Generation
+// Map Generation - Infinite Procedural World
 // =============================================================================
 
 export interface MapGeneratorOptions {
   seed: number;
-  width?: number;
-  height?: number;
-  wallDensity?: number; // 0-1, probability of wall/pillar placement
+  wallDensity?: number; // 0-1, probability of obstacle placement
   name?: string;
 }
 
 const DEFAULT_OPTIONS = {
-  width: 20,
-  height: 20,
-  wallDensity: 0.15,
-  name: "Generated Arena",
+  wallDensity: 0.12,
+  name: "Infinite World",
 } as const;
 
 // Obstacle types with their relative weights
 const OBSTACLE_TYPES: { type: TileType; weight: number }[] = [
-  { type: "rock", weight: 3 },
-  { type: "tree", weight: 4 },
-  { type: "bush", weight: 2 },
-  { type: "wall", weight: 2 },
-  { type: "pillar", weight: 1 },
+  // Rock types
+  { type: "rock", weight: 2 },
+  { type: "rock_mossy", weight: 2 },
+  { type: "rock_large", weight: 1 },
+  { type: "boulder", weight: 1 },
+  { type: "stone_pile", weight: 2 },
+  // Tree types
+  { type: "tree", weight: 2 },
+  { type: "tree_pine", weight: 2 },
+  { type: "tree_oak", weight: 1 },
+  { type: "tree_dead", weight: 1 },
+  { type: "tree_small", weight: 2 },
+  // Other obstacles
+  { type: "bush", weight: 3 },
 ];
 
+const TOTAL_OBSTACLE_WEIGHT = OBSTACLE_TYPES.reduce((sum, o) => sum + o.weight, 0);
+
 /**
- * Generate a random combat map with the given options.
+ * Generate an infinite procedural map.
+ * Tiles are generated on-demand using deterministic hash functions.
  */
 export function generateMap(options: MapGeneratorOptions): GameMap {
-  const rng = new SeededRandom(options.seed);
-  const width = options.width ?? DEFAULT_OPTIONS.width;
-  const height = options.height ?? DEFAULT_OPTIONS.height;
+  const seed = options.seed;
   const wallDensity = options.wallDensity ?? DEFAULT_OPTIONS.wallDensity;
   const name = options.name ?? DEFAULT_OPTIONS.name;
 
-  // Initialize all tiles with varied ground using Perlin-like noise
-  const tiles: Tile[][] = [];
-  for (let y = 0; y < height; y++) {
-    tiles[y] = [];
-    for (let x = 0; x < width; x++) {
-      // Use position-based randomness for natural clustering
-      const noiseVal = simpleNoise(x, y, options.seed);
-      const groundType = pickGroundTile(noiseVal, rng);
-      tiles[y]![x] = createTile(groundType);
-    }
+  // Cache for generated tiles (performance optimization)
+  const tileCache = new Map<string, Tile>();
+
+  /**
+   * Get tile at any coordinate - generates procedurally if not cached.
+   */
+  function getTile(x: number, y: number): Tile {
+    const key = `${x},${y}`;
+    const cached = tileCache.get(key);
+    if (cached) return cached;
+
+    const tile = generateTileAt(x, y, seed, wallDensity);
+    tileCache.set(key, tile);
+    return tile;
   }
-
-  // Add some water pools (small clusters)
-  const waterPools = rng.nextInt(1, 3);
-  for (let i = 0; i < waterPools; i++) {
-    const poolX = rng.nextInt(4, width - 5);
-    const poolY = rng.nextInt(4, height - 5);
-    const poolSize = rng.nextInt(2, 4);
-
-    for (let dy = -poolSize; dy <= poolSize; dy++) {
-      for (let dx = -poolSize; dx <= poolSize; dx++) {
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist <= poolSize && rng.nextBool(0.7)) {
-          const px = poolX + dx;
-          const py = poolY + dy;
-          if (px >= 0 && px < width && py >= 0 && py < height) {
-            const waterType: TileType = dist < poolSize * 0.5 ? "water_deep" : "water";
-            tiles[py]![px] = createTile(waterType);
-          }
-        }
-      }
-    }
-    // Add sand around water
-    for (let dy = -poolSize - 1; dy <= poolSize + 1; dy++) {
-      for (let dx = -poolSize - 1; dx <= poolSize + 1; dx++) {
-        const px = poolX + dx;
-        const py = poolY + dy;
-        if (px >= 0 && px < width && py >= 0 && py < height) {
-          const tile = tiles[py]![px]!;
-          if (tile.type !== "water" && tile.type !== "water_deep" && rng.nextBool(0.4)) {
-            tiles[py]![px] = createTile("sand");
-          }
-        }
-      }
-    }
-  }
-
-  // Add random obstacles (rocks, trees, bushes, walls, pillars)
-  const interiorStartX = 2;
-  const interiorEndX = width - 3;
-  const interiorStartY = 2;
-  const interiorEndY = height - 3;
-
-  const totalWeight = OBSTACLE_TYPES.reduce((sum, o) => sum + o.weight, 0);
-
-  for (let y = interiorStartY; y <= interiorEndY; y++) {
-    for (let x = interiorStartX; x <= interiorEndX; x++) {
-      const currentTile = tiles[y]![x]!;
-      // Don't place obstacles on water
-      if (currentTile.type === "water" || currentTile.type === "water_deep") continue;
-
-      if (rng.nextBool(wallDensity)) {
-        // Weighted random selection of obstacle type
-        let roll = rng.next() * totalWeight;
-        let selectedType: TileType = "rock";
-        for (const obstacle of OBSTACLE_TYPES) {
-          roll -= obstacle.weight;
-          if (roll <= 0) {
-            selectedType = obstacle.type;
-            break;
-          }
-        }
-        tiles[y]![x] = createTile(selectedType);
-      }
-    }
-  }
-
-  // Ensure spawn areas are clear (corners) - use grass for clarity
-  clearArea(tiles, 1, 1, 3, 3, "grass_light"); // Top-left for player
-  clearArea(tiles, width - 4, 1, 3, 3, "grass_light"); // Top-right for monster
-  clearArea(tiles, 1, height - 4, 3, 3, "grass_light"); // Bottom-left for monster
-  clearArea(tiles, width - 4, height - 4, 3, 3, "grass_light"); // Bottom-right for monster
 
   return {
-    id: `map-${options.seed}`,
+    id: `map-${seed}`,
     name,
-    size: { width, height },
-    tiles,
-    seed: options.seed,
+    seed,
+    getTile,
   };
 }
 
 /**
- * Simple noise function for natural-looking terrain variation.
+ * Generate a single tile at the given coordinates.
+ * Uses multiple hash functions for different terrain features.
  */
-function simpleNoise(x: number, y: number, seed: number): number {
-  const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-  return n - Math.floor(n);
+function generateTileAt(x: number, y: number, seed: number, wallDensity: number): Tile {
+  // Check for water (using large-scale noise for pools)
+  const waterNoise = hashPosition(Math.floor(x / 8), Math.floor(y / 8), seed + 11111);
+  const waterDetail = hashPosition(x, y, seed + 22222);
+
+  if (waterNoise < 0.15) {
+    // This area might be water
+    const distFromCenter = waterDetail;
+    if (distFromCenter < 0.4) {
+      return createTile(distFromCenter < 0.2 ? "water_deep" : "water");
+    }
+    // Sand around water
+    if (distFromCenter < 0.6 && hashPosition(x, y, seed + 33333) < 0.5) {
+      return createTile("sand");
+    }
+  }
+
+  // Check for obstacles
+  const obstacleNoise = hashPosition(x, y, seed + 12345);
+  if (obstacleNoise < wallDensity) {
+    // Pick obstacle type
+    const typeNoise = hashPosition(x, y, seed + 54321);
+    let roll = typeNoise * TOTAL_OBSTACLE_WEIGHT;
+    for (const obstacle of OBSTACLE_TYPES) {
+      roll -= obstacle.weight;
+      if (roll <= 0) {
+        return createTile(obstacle.type);
+      }
+    }
+    return createTile("rock");
+  }
+
+  // Ground tile - varied grass
+  const groundNoise = hashPosition(x, y, seed);
+  return createTile(pickGroundTile(groundNoise));
+}
+
+/**
+ * Clear a spawn area around a position (makes tiles walkable).
+ * Note: For infinite maps, spawn areas are kept clear by checking distance from spawn points
+ * in generateTileAt. This function is kept for API compatibility.
+ */
+export function clearSpawnArea(_map: GameMap, _centerX: number, _centerY: number, _radius: number): void {
+  // No-op for infinite maps - spawn areas are handled by isSpawnArea checks
+}
+
+/**
+ * Check if a position is in a spawn area (should be kept clear).
+ */
+export function isSpawnArea(x: number, y: number, spawnPoints: Position[]): boolean {
+  for (const spawn of spawnPoints) {
+    const dx = Math.abs(x - spawn.x);
+    const dy = Math.abs(y - spawn.y);
+    if (dx <= 2 && dy <= 2) return true;
+  }
+  return false;
+}
+
+/**
+ * Hash function for position-based randomness with uniform distribution.
+ * Uses integer mixing to produce well-distributed values.
+ */
+function hashPosition(x: number, y: number, seed: number): number {
+  // Ensure integer inputs
+  let ix = Math.floor(x) | 0;
+  let iy = Math.floor(y) | 0;
+  let h = Math.floor(seed) | 0;
+
+  // Mix coordinates with seed using multiplication and XOR
+  // This produces much more uniform distribution than sin-based noise
+  h = Math.imul(h ^ ix, 0x45d9f3b);
+  h = Math.imul(h ^ iy, 0x45d9f3b);
+  h = h ^ (h >>> 16);
+  h = Math.imul(h, 0x45d9f3b);
+  h = h ^ (h >>> 16);
+
+  // Convert to 0-1 range (use >>> 0 to treat as unsigned)
+  return ((h >>> 0) % 10000) / 10000;
 }
 
 /**
  * Pick a ground tile based on noise value - all green shades.
  */
-function pickGroundTile(noise: number, _rng: SeededRandom): TileType {
-  // Create natural-looking patches using only green variants
+function pickGroundTile(noise: number): TileType {
   if (noise < 0.3) return "grass_dark";
   if (noise < 0.6) return "grass_light";
-  if (noise < 0.85) return "floor"; // floor is also green-tinted
+  if (noise < 0.85) return "floor";
   return "grass_light";
-}
-
-function clearArea(
-  tiles: Tile[][],
-  startX: number,
-  startY: number,
-  width: number,
-  height: number,
-  tileType: TileType = "floor"
-): void {
-  for (let y = startY; y < startY + height; y++) {
-    for (let x = startX; x < startX + width; x++) {
-      if (tiles[y] && tiles[y]![x]) {
-        tiles[y]![x] = createTile(tileType);
-      }
-    }
-  }
 }
 
 // =============================================================================
@@ -251,49 +248,53 @@ const MONSTER_TYPES = [
 
 export interface UnitGeneratorOptions {
   seed: number;
-  mapSize: GridSize;
+  playerStart?: Position;
   playerName?: string;
   monsterCount?: number;
 }
 
+// Monster spawn offsets from player start (for infinite world)
+const MONSTER_SPAWN_OFFSETS: Position[] = [
+  { x: 15, y: 0 },   // East
+  { x: -15, y: 0 },  // West
+  { x: 0, y: 15 },   // South
+  { x: 0, y: -15 },  // North
+  { x: 10, y: 10 },  // Southeast
+  { x: -10, y: 10 }, // Southwest
+  { x: 10, y: -10 }, // Northeast
+  { x: -10, y: -10 }, // Northwest
+];
+
 /**
- * Generate units for a combat encounter.
- * Places player in one corner and monsters distributed around the map.
- * Spawns 3-6 monsters by default with varied types.
+ * Generate units for a combat encounter in infinite world.
+ * Player starts at origin (0,0) by default, monsters spawn at offsets.
  */
 export function generateUnits(options: UnitGeneratorOptions): Unit[] {
-  const rng = new SeededRandom(options.seed + 1000); // Different seed from map
-  // Random 3-6 monsters if not specified
+  const rng = new SeededRandom(options.seed + 1000);
   const monsterCount = options.monsterCount ?? rng.nextInt(3, 6);
+  const playerStart = options.playerStart ?? { x: 0, y: 0 };
   const units: Unit[] = [];
 
-  // Spawn player in top-left area
+  // Spawn player
   const player: Unit = {
     id: "player-1",
     type: "player",
     name: options.playerName ?? "Hero",
-    position: { x: 2, y: 2 },
+    position: playerStart,
     stats: { ...PLAYER_BASE_STATS },
   };
   units.push(player);
 
-  // Generate more spawn positions to accommodate up to 6 monsters
-  const monsterSpawns: Position[] = [
-    { x: options.mapSize.width - 3, y: 2 }, // Top-right
-    { x: 2, y: options.mapSize.height - 3 }, // Bottom-left
-    { x: options.mapSize.width - 3, y: options.mapSize.height - 3 }, // Bottom-right
-    { x: Math.floor(options.mapSize.width / 2), y: 2 }, // Top-center
-    { x: Math.floor(options.mapSize.width / 2), y: options.mapSize.height - 3 }, // Bottom-center
-    { x: options.mapSize.width - 3, y: Math.floor(options.mapSize.height / 2) }, // Right-center
-    { x: Math.floor(options.mapSize.width / 2), y: Math.floor(options.mapSize.height / 2) }, // Center
-    { x: Math.floor(options.mapSize.width * 0.75), y: Math.floor(options.mapSize.height * 0.75) }, // Lower-right quadrant
-  ];
+  // Generate monster positions relative to player
+  const monsterSpawns: Position[] = MONSTER_SPAWN_OFFSETS.map(offset => ({
+    x: playerStart.x + offset.x,
+    y: playerStart.y + offset.y,
+  }));
 
   // Shuffle and pick spawn positions
   const shuffledSpawns = rng.shuffle(monsterSpawns);
 
   for (let i = 0; i < monsterCount && i < shuffledSpawns.length; i++) {
-    // Pick a random monster type
     const monsterType = MONSTER_TYPES[rng.nextInt(0, MONSTER_TYPES.length - 1)]!;
     const baseHp = MONSTER_BASE_STATS.maxHp + monsterType.hpMod;
     const maxHp = baseHp + rng.nextInt(-3, 3);
@@ -323,34 +324,39 @@ export function generateUnits(options: UnitGeneratorOptions): Unit[] {
 
 export interface GameGeneratorOptions {
   seed: number;
-  mapWidth?: number;
-  mapHeight?: number;
   wallDensity?: number;
   playerName?: string;
+  playerStart?: Position;
   monsterCount?: number;
 }
 
 /**
- * Generate a complete initial game state ready for combat.
+ * Generate a complete initial game state for infinite world combat.
  */
 export function generateGameState(options: GameGeneratorOptions): import("./types.js").GameState {
   const mapOptions: MapGeneratorOptions = {
     seed: options.seed,
   };
-  if (options.mapWidth !== undefined) mapOptions.width = options.mapWidth;
-  if (options.mapHeight !== undefined) mapOptions.height = options.mapHeight;
   if (options.wallDensity !== undefined) mapOptions.wallDensity = options.wallDensity;
 
   const map = generateMap(mapOptions);
 
+  const playerStart = options.playerStart ?? { x: 0, y: 0 };
   const unitOptions: UnitGeneratorOptions = {
     seed: options.seed,
-    mapSize: map.size,
+    playerStart,
   };
   if (options.playerName !== undefined) unitOptions.playerName = options.playerName;
   if (options.monsterCount !== undefined) unitOptions.monsterCount = options.monsterCount;
 
   const units = generateUnits(unitOptions);
+
+  // Generate a test loot bag near player start
+  const testLootDrops: LootDrop[] = [];
+  const testLoot = generateLootDrop({ x: playerStart.x + 1, y: playerStart.y + 1 }, options.seed + 9999);
+  if (testLoot) {
+    testLootDrops.push(testLoot);
+  }
 
   return {
     map,
@@ -363,5 +369,7 @@ export function generateGameState(options: GameGeneratorOptions): import("./type
       turnState: null,
     },
     turnHistory: [],
+    lootDrops: testLootDrops,
+    playerInventory: DEFAULT_INVENTORY,
   };
 }

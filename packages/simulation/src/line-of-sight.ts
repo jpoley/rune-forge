@@ -36,7 +36,7 @@ export function hasLineOfSight(
       continue;
     }
 
-    const tile = getTile(pos, map);
+    const tile = getTileAt(pos, map);
     if (tile && tile.blocksLos) {
       return false;
     }
@@ -100,14 +100,10 @@ export function getLineOfSightPath(from: Position, to: Position): Position[] {
 }
 
 /**
- * Get the tile at a position, or null if out of bounds.
+ * Get the tile at a position (infinite map - always returns a tile).
  */
-function getTile(pos: Position, map: GameMap): Tile | null {
-  if (pos.x < 0 || pos.x >= map.size.width ||
-      pos.y < 0 || pos.y >= map.size.height) {
-    return null;
-  }
-  return map.tiles[pos.y]?.[pos.x] ?? null;
+function getTileAt(pos: Position, map: GameMap): Tile {
+  return map.getTile(pos.x, pos.y);
 }
 
 /**
@@ -128,8 +124,8 @@ export function findBlockingTile(
       continue;
     }
 
-    const tile = getTile(pos, map);
-    if (tile && tile.blocksLos) {
+    const tile = getTileAt(pos, map);
+    if (tile.blocksLos) {
       return pos;
     }
   }
@@ -159,11 +155,12 @@ export function getDistance(a: Position, b: Position): number {
 
 /**
  * Get all positions within a given range of a center position.
+ * Infinite map - no boundary checks needed.
  */
 export function getPositionsInRange(
   center: Position,
   range: number,
-  map: GameMap
+  _map: GameMap
 ): Position[] {
   const positions: Position[] = [];
 
@@ -171,17 +168,9 @@ export function getPositionsInRange(
     for (let dx = -range; dx <= range; dx++) {
       if (dx === 0 && dy === 0) continue; // Skip center
 
-      const pos = { x: center.x + dx, y: center.y + dy };
-
-      // Check bounds
-      if (pos.x < 0 || pos.x >= map.size.width ||
-          pos.y < 0 || pos.y >= map.size.height) {
-        continue;
-      }
-
       // Check Manhattan distance
       if (Math.abs(dx) + Math.abs(dy) <= range) {
-        positions.push(pos);
+        positions.push({ x: center.x + dx, y: center.y + dy });
       }
     }
   }

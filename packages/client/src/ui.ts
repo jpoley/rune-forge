@@ -3,13 +3,23 @@
  * Handles DOM updates for initiative tracker, action bar, unit panel, and combat log.
  */
 
-import type { InitiativeEntry, TurnState, Unit } from "@rune-forge/simulation";
+import type { InitiativeEntry, PlayerInventory, TurnState, Unit } from "@rune-forge/simulation";
+import { WEAPON_DEFINITIONS } from "@rune-forge/simulation";
 import type { GameMode } from "./game.js";
 import { CHARACTER_CLASSES, MONSTER_TYPES, type CharacterClass, type MonsterType } from "./characters.js";
 
 export interface CharacterSelection {
   playerClass: CharacterClass;
   monsters: MonsterType[];
+}
+
+export type NpcTurnMode = "sequential" | "parallel";
+
+export interface GameSettings {
+  gameSpeed: number;
+  npcTurnMode: NpcTurnMode;
+  defend: boolean;
+  equippedWeaponId: string | null;
 }
 
 export class GameUI {
@@ -21,6 +31,11 @@ export class GameUI {
   onEndTurn: (() => void) | null = null;
   onStartBattle: ((selection: CharacterSelection) => void) | null = null;
   onPauseGame: (() => void) | null = null;
+  onSettingsChange: ((settings: GameSettings) => void) | null = null;
+  onGrantWeapon: ((weaponId: string) => void) | null = null;
+  onGrantGold: ((amount: number) => void) | null = null;
+  onBuyWeapon: ((weaponId: string) => void) | null = null;
+  onSleep: (() => void) | null = null;
 
   // DOM elements
   private startScreen: HTMLElement;
@@ -31,10 +46,31 @@ export class GameUI {
   private combatLog: HTMLElement;
   private timerDisplay: HTMLElement;
   private pauseOverlay: HTMLElement;
+  private settingsPanel: HTMLElement;
+  private inventoryPanel: HTMLElement;
+  private dmPanel: HTMLElement;
+  private shopPanel: HTMLElement;
+
+  // Current gold for shop display
+  private currentGold = 0;
+
+  // Sleep heal amount (DM setting)
+  private sleepHealAmount = 5;
 
   // Selection state
   private selectedClass: CharacterClass | null = null;
   private selectedMonsters: MonsterType[] = [];
+
+  // Settings state
+  private settings: GameSettings = {
+    gameSpeed: 1.25,
+    npcTurnMode: "parallel",
+    defend: true,
+    equippedWeaponId: null,
+  };
+
+  // Available weapons for selection
+  private availableWeapons: Array<{ id: string; name: string; attackBonus: number }> = [];
 
   constructor() {
     this.startScreen = document.getElementById("start-screen")!;
@@ -45,9 +81,16 @@ export class GameUI {
     this.combatLog = document.getElementById("combat-log")!;
     this.timerDisplay = document.getElementById("turn-timer")!;
     this.pauseOverlay = document.getElementById("pause-overlay")!;
+    this.settingsPanel = document.getElementById("settings-panel")!;
+    this.inventoryPanel = document.getElementById("inventory-panel")!;
+    this.dmPanel = document.getElementById("dm-panel")!;
+    this.shopPanel = document.getElementById("shop-panel")!;
 
     this.setupEventListeners();
     this.buildCharacterSelectionUI();
+    this.setupSettingsListeners();
+    this.setupDMListeners();
+    this.setupShopListeners();
   }
 
   private setupEventListeners(): void {
@@ -71,6 +114,10 @@ export class GameUI {
       this.onEndTurn?.();
     });
 
+    document.getElementById("btn-sleep")?.addEventListener("click", () => {
+      this.onSleep?.();
+    });
+
     document.getElementById("start-battle-btn")?.addEventListener("click", () => {
       if (this.selectedClass && this.selectedMonsters.length === 3) {
         this.onStartBattle?.({
@@ -88,12 +135,420 @@ export class GameUI {
       this.onPauseGame?.();
     });
 
+    document.getElementById("btn-dm")?.addEventListener("click", () => {
+      this.toggleDMPanel();
+    });
+
+    document.getElementById("btn-shop")?.addEventListener("click", () => {
+      this.toggleShopPanel();
+    });
+
     // Keyboard shortcut for pause (Escape or P)
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" || e.key === "p" || e.key === "P") {
         this.onPauseGame?.();
       }
     });
+
+    // Settings button
+    document.getElementById("btn-settings")?.addEventListener("click", () => {
+      this.toggleSettingsPanel();
+    });
+  }
+
+  private setupSettingsListeners(): void {
+    // Speed selector buttons
+    const speedSelector = document.getElementById("speed-selector");
+    speedSelector?.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains("speed-btn")) {
+        const speed = parseFloat(target.dataset.speed || "1");
+        this.setGameSpeed(speed);
+      }
+    });
+
+    // NPC mode toggle
+    const npcToggle = document.getElementById("npc-mode-toggle");
+    npcToggle?.addEventListener("click", () => {
+      this.toggleNpcMode();
+    });
+
+    // Defend toggle
+    const defendToggle = document.getElementById("defend-toggle");
+    defendToggle?.addEventListener("click", () => {
+      this.toggleDefend();
+    });
+
+    // Close settings when clicking outside
+    document.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (
+        this.settingsPanel.style.display === "block" &&
+        !this.settingsPanel.contains(target) &&
+        target.id !== "btn-settings"
+      ) {
+        this.hideSettingsPanel();
+      }
+    });
+  }
+
+  private setGameSpeed(speed: number): void {
+    this.settings.gameSpeed = speed;
+
+    // Update UI
+    const buttons = document.querySelectorAll(".speed-btn");
+    buttons.forEach(btn => {
+      const btnSpeed = parseFloat((btn as HTMLElement).dataset.speed || "0");
+      btn.classList.toggle("active", btnSpeed === speed);
+    });
+
+    this.onSettingsChange?.(this.settings);
+  }
+
+  private toggleNpcMode(): void {
+    this.settings.npcTurnMode = this.settings.npcTurnMode === "sequential" ? "parallel" : "sequential";
+
+    // Update UI
+    const toggle = document.getElementById("npc-mode-toggle");
+    const currentLabel = document.getElementById("npc-mode-current");
+    const otherLabel = document.getElementById("npc-mode-other");
+
+    if (this.settings.npcTurnMode === "parallel") {
+      toggle?.classList.add("active");
+      if (currentLabel) currentLabel.textContent = "Parallel";
+      if (otherLabel) otherLabel.textContent = "Click for Sequential";
+    } else {
+      toggle?.classList.remove("active");
+      if (currentLabel) currentLabel.textContent = "Sequential";
+      if (otherLabel) otherLabel.textContent = "Click for Parallel";
+    }
+
+    this.onSettingsChange?.(this.settings);
+  }
+
+  private toggleDefend(): void {
+    this.settings.defend = !this.settings.defend;
+
+    // Update UI
+    const toggle = document.getElementById("defend-toggle");
+    const currentLabel = document.getElementById("defend-current");
+    const otherLabel = document.getElementById("defend-other");
+
+    if (this.settings.defend) {
+      toggle?.classList.add("active");
+      if (currentLabel) currentLabel.textContent = "On";
+      if (otherLabel) otherLabel.textContent = "Click to disable";
+    } else {
+      toggle?.classList.remove("active");
+      if (currentLabel) currentLabel.textContent = "Off";
+      if (otherLabel) otherLabel.textContent = "Click to enable";
+    }
+
+    this.onSettingsChange?.(this.settings);
+  }
+
+  /**
+   * Update the available weapons for selection.
+   */
+  updateWeaponOptions(weapons: Array<{ id: string; name: string; attackBonus?: number }>, equippedId: string | null): void {
+    this.availableWeapons = weapons.map(w => ({
+      id: w.id,
+      name: w.name,
+      attackBonus: w.attackBonus ?? 0,
+    }));
+    this.settings.equippedWeaponId = equippedId;
+    this.renderWeaponSelector();
+    this.renderDMWeaponButtons();
+  }
+
+  /**
+   * Render the weapon selector dropdown.
+   */
+  private renderWeaponSelector(): void {
+    const container = document.getElementById("weapon-selector");
+    if (!container) return;
+
+    // Clear existing content safely
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+
+    if (this.availableWeapons.length === 0) {
+      const noWeapons = document.createElement("span");
+      noWeapons.className = "no-weapons";
+      noWeapons.textContent = "No weapons";
+      container.appendChild(noWeapons);
+      return;
+    }
+
+    // Create dropdown
+    const select = document.createElement("select");
+    select.id = "weapon-select";
+    select.className = "weapon-select";
+
+    // Add "None" option
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = "Unarmed";
+    select.appendChild(noneOption);
+
+    // Add weapon options
+    for (const weapon of this.availableWeapons) {
+      const option = document.createElement("option");
+      option.value = weapon.id;
+      option.textContent = `${weapon.name} (+${weapon.attackBonus})`;
+      if (weapon.id === this.settings.equippedWeaponId) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    }
+
+    select.addEventListener("change", () => {
+      this.settings.equippedWeaponId = select.value || null;
+      this.onSettingsChange?.(this.settings);
+    });
+
+    container.appendChild(select);
+  }
+
+  /**
+   * Render the DM weapon grant buttons.
+   */
+  renderDMWeaponButtons(): void {
+    const container = document.getElementById("dm-weapon-buttons");
+    if (!container) return;
+
+    // Clear existing buttons
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+
+    // Create button for each weapon definition
+    for (const weapon of WEAPON_DEFINITIONS) {
+      const btn = document.createElement("button");
+      btn.className = "dm-weapon-btn";
+
+      // Check if player already owns this weapon
+      const isOwned = this.availableWeapons.some(w => w.name === weapon.name);
+      if (isOwned) {
+        btn.classList.add("owned");
+      }
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = weapon.name;
+      btn.appendChild(nameSpan);
+
+      const bonusSpan = document.createElement("span");
+      bonusSpan.className = "bonus";
+      bonusSpan.textContent = `+${weapon.attackBonus}`;
+      btn.appendChild(bonusSpan);
+
+      if (!isOwned) {
+        btn.addEventListener("click", () => {
+          this.onGrantWeapon?.(weapon.id);
+        });
+      }
+
+      container.appendChild(btn);
+    }
+  }
+
+  /**
+   * Toggle the settings panel visibility.
+   */
+  toggleSettingsPanel(): void {
+    this.hideDMPanel();
+    this.hideShopPanel();
+    if (this.settingsPanel.style.display === "block") {
+      this.hideSettingsPanel();
+    } else {
+      this.showSettingsPanel();
+    }
+  }
+
+  /**
+   * Show the settings panel.
+   */
+  showSettingsPanel(): void {
+    this.settingsPanel.style.display = "block";
+  }
+
+  /**
+   * Hide the settings panel.
+   */
+  hideSettingsPanel(): void {
+    this.settingsPanel.style.display = "none";
+  }
+
+  /**
+   * Toggle the DM panel visibility.
+   */
+  toggleDMPanel(): void {
+    this.hideSettingsPanel();
+    this.hideShopPanel();
+    if (this.dmPanel.style.display === "block") {
+      this.hideDMPanel();
+    } else {
+      this.showDMPanel();
+    }
+  }
+
+  showDMPanel(): void {
+    this.dmPanel.style.display = "block";
+  }
+
+  hideDMPanel(): void {
+    this.dmPanel.style.display = "none";
+  }
+
+  /**
+   * Toggle the shop panel visibility.
+   */
+  toggleShopPanel(): void {
+    this.hideSettingsPanel();
+    this.hideDMPanel();
+    if (this.shopPanel.style.display === "block") {
+      this.hideShopPanel();
+    } else {
+      this.showShopPanel();
+    }
+  }
+
+  showShopPanel(): void {
+    this.shopPanel.style.display = "block";
+    this.renderShopItems();
+  }
+
+  hideShopPanel(): void {
+    this.shopPanel.style.display = "none";
+  }
+
+  /**
+   * Enable or disable the shop button based on player proximity.
+   */
+  setShopEnabled(enabled: boolean): void {
+    const btn = document.getElementById("btn-shop") as HTMLButtonElement | null;
+    if (btn) {
+      btn.disabled = !enabled;
+      btn.style.opacity = enabled ? "1" : "0.4";
+    }
+  }
+
+  /**
+   * Get the sleep heal amount (DM setting).
+   */
+  getSleepHealAmount(): number {
+    return this.sleepHealAmount;
+  }
+
+  /**
+   * Setup DM panel listeners.
+   */
+  private setupDMListeners(): void {
+    // Gold grant buttons
+    document.querySelectorAll(".dm-gold-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const amount = parseInt((btn as HTMLElement).dataset.amount || "0", 10);
+        this.onGrantGold?.(amount);
+      });
+    });
+
+    // Sleep heal input
+    const sleepHealInput = document.getElementById("dm-sleep-heal") as HTMLInputElement | null;
+    if (sleepHealInput) {
+      sleepHealInput.addEventListener("change", () => {
+        this.sleepHealAmount = parseInt(sleepHealInput.value, 10) || 5;
+      });
+    }
+  }
+
+  /**
+   * Setup shop panel listeners.
+   */
+  private setupShopListeners(): void {
+    // Shop items are rendered dynamically
+  }
+
+  /**
+   * Update the shop gold display.
+   */
+  updateShopGold(gold: number): void {
+    this.currentGold = gold;
+    const goldDisplay = document.getElementById("shop-gold-display");
+    if (goldDisplay) {
+      goldDisplay.textContent = gold.toString();
+    }
+  }
+
+  /**
+   * Render shop items with buy buttons.
+   */
+  renderShopItems(): void {
+    const container = document.getElementById("shop-weapon-list");
+    if (!container) return;
+
+    // Clear existing items
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+
+    // Update gold display
+    const goldDisplay = document.getElementById("shop-gold-display");
+    if (goldDisplay) {
+      goldDisplay.textContent = this.currentGold.toString();
+    }
+
+    // Create item for each weapon
+    for (const weapon of WEAPON_DEFINITIONS) {
+      const item = document.createElement("div");
+      item.className = "shop-item";
+
+      const info = document.createElement("div");
+      info.className = "shop-item-info";
+
+      const name = document.createElement("span");
+      name.className = "shop-item-name";
+      name.textContent = weapon.name;
+      info.appendChild(name);
+
+      const bonus = document.createElement("span");
+      bonus.className = "shop-item-bonus";
+      bonus.textContent = `+${weapon.attackBonus} Attack`;
+      info.appendChild(bonus);
+
+      item.appendChild(info);
+
+      const btn = document.createElement("button");
+      btn.className = "shop-buy-btn";
+
+      // Check if player already owns this weapon
+      const isOwned = this.availableWeapons.some(w => w.name === weapon.name);
+      const canAfford = this.currentGold >= weapon.price;
+
+      if (isOwned) {
+        btn.textContent = "Owned";
+        btn.classList.add("owned");
+        btn.disabled = true;
+      } else if (!canAfford) {
+        btn.textContent = `${weapon.price}g`;
+        btn.disabled = true;
+      } else {
+        btn.textContent = `${weapon.price}g`;
+        btn.addEventListener("click", () => {
+          this.onBuyWeapon?.(weapon.id);
+        });
+      }
+
+      item.appendChild(btn);
+      container.appendChild(item);
+    }
+  }
+
+  /**
+   * Get current settings.
+   */
+  getSettings(): GameSettings {
+    return { ...this.settings };
   }
 
   private buildCharacterSelectionUI(): void {
@@ -431,5 +886,47 @@ export class GameUI {
    */
   showPauseOverlay(show: boolean): void {
     this.pauseOverlay.style.display = show ? "flex" : "none";
+  }
+
+  /**
+   * Update the inventory display.
+   */
+  updateInventory(inventory: PlayerInventory): void {
+    if (!this.inventoryPanel) return;
+
+    // Show the panel
+    this.inventoryPanel.style.display = "block";
+
+    // Update gold display
+    const goldEl = document.getElementById("inventory-gold");
+    if (goldEl) goldEl.textContent = String(inventory.gold);
+
+    // Update silver display
+    const silverEl = document.getElementById("inventory-silver");
+    if (silverEl) silverEl.textContent = String(inventory.silver);
+
+    // Update equipped weapon display
+    const weaponEl = document.getElementById("inventory-weapon");
+    if (weaponEl) {
+      if (inventory.equippedWeaponId) {
+        const weapon = inventory.weapons.find(w => w.id === inventory.equippedWeaponId);
+        if (weapon) {
+          weaponEl.textContent = `${weapon.name} (+${weapon.attackBonus || 0})`;
+        } else {
+          weaponEl.textContent = "None";
+        }
+      } else {
+        weaponEl.textContent = "None";
+      }
+    }
+  }
+
+  /**
+   * Hide the inventory panel.
+   */
+  hideInventory(): void {
+    if (this.inventoryPanel) {
+      this.inventoryPanel.style.display = "none";
+    }
   }
 }

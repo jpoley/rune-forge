@@ -4,12 +4,12 @@
  */
 
 import * as THREE from "three";
-import type { GameMap, GameState, Position, Tile, Unit } from "@rune-forge/simulation";
+import type { GameMap, GameState, LootDrop, Position, Tile, Unit } from "@rune-forge/simulation";
 
 const TILE_SIZE = 1;
 const TILE_HEIGHT = 0.2;
 const UNIT_SIZE = 0.9;
-const INFINITE_EXTEND = 30; // How many tiles to extend beyond map edges
+const RENDER_RADIUS = 50; // Tiles to render around center in each direction
 
 // Texture loader
 const textureLoader = new THREE.TextureLoader();
@@ -29,8 +29,18 @@ const COLORS = {
   // Obstacles
   wall: 0x5a5a6a,
   pillar: 0x6a6a7a,
+  // 5 rock types
   rock: 0x7a7a8a,
+  rock_mossy: 0x5a7a6a,
+  rock_large: 0x6a6a7a,
+  boulder: 0x8a8a9a,
+  stone_pile: 0x9a9a9a,
+  // 5 tree types
   tree: 0x2a4a2a,
+  tree_pine: 0x1a3a1a,
+  tree_oak: 0x3a5a2a,
+  tree_dead: 0x4a3a2a,
+  tree_small: 0x3a6a3a,
   tree_trunk: 0x5a4030,
   bush: 0x4a7a4a,
   // Units
@@ -41,6 +51,9 @@ const COLORS = {
   attackHighlight: 0xff4444,
   blocked: 0xff0000,
   selected: 0xffff00,
+  // Loot
+  lootBag: 0xc9a227,
+  lootBagDark: 0x8a6b1a,
 };
 
 export class IsometricRenderer {
@@ -53,10 +66,18 @@ export class IsometricRenderer {
   private tileGroup: THREE.Group;
   private unitGroup: THREE.Group;
   private highlightGroup: THREE.Group;
+  private lootGroup: THREE.Group;
+  private shopGroup: THREE.Group;
 
   private tileMeshes: Map<string, THREE.Mesh> = new Map();
   private unitMeshes: Map<string, THREE.Mesh> = new Map();
   private highlightMeshes: THREE.Mesh[] = [];
+  private lootMeshes: Map<string, THREE.Group> = new Map();
+  private shopMesh: THREE.Group | null = null;
+
+  // Infinite map state
+  private currentMap: GameMap | null = null;
+  private renderCenter: Position = { x: 0, y: 0 };
 
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
@@ -71,6 +92,8 @@ export class IsometricRenderer {
   onTileClick: ((pos: Position) => void) | null = null;
   onTileHover: ((pos: Position | null) => void) | null = null;
   onUnitClick: ((unitId: string) => void) | null = null;
+  onLootClick: ((lootId: string) => void) | null = null;
+  onShopClick: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -104,10 +127,14 @@ export class IsometricRenderer {
     // Groups for organization (order matters for rendering)
     this.infiniteFloorGroup = new THREE.Group();
     this.tileGroup = new THREE.Group();
+    this.lootGroup = new THREE.Group();
+    this.shopGroup = new THREE.Group();
     this.unitGroup = new THREE.Group();
     this.highlightGroup = new THREE.Group();
     this.scene.add(this.infiniteFloorGroup);
     this.scene.add(this.tileGroup);
+    this.scene.add(this.lootGroup);
+    this.scene.add(this.shopGroup);
     this.scene.add(this.unitGroup);
     this.scene.add(this.highlightGroup);
 
@@ -169,11 +196,29 @@ export class IsometricRenderer {
 
   private handleClick(): void {
     if (this.hoveredTile) {
-      // Check if there's a unit at this position
+      // Check if there's a unit at this position FIRST (for attacking)
       for (const [unitId, mesh] of this.unitMeshes) {
         const unitPos = mesh.userData.position as Position;
         if (unitPos.x === this.hoveredTile.x && unitPos.y === this.hoveredTile.y) {
           this.onUnitClick?.(unitId);
+          return;
+        }
+      }
+
+      // Then check if there's a loot bag at this position
+      for (const [lootId, group] of this.lootMeshes) {
+        const lootPos = group.userData.position as Position;
+        if (lootPos.x === this.hoveredTile.x && lootPos.y === this.hoveredTile.y) {
+          this.onLootClick?.(lootId);
+          return;
+        }
+      }
+
+      // Check if clicking on shop
+      if (this.shopMesh) {
+        const shopPos = this.shopMesh.userData.position as Position;
+        if (shopPos.x === this.hoveredTile.x && shopPos.y === this.hoveredTile.y) {
+          this.onShopClick?.();
           return;
         }
       }
@@ -212,15 +257,18 @@ export class IsometricRenderer {
   }
 
   /**
-   * Render the game map tiles.
+   * Render the infinite game map around a center position.
    */
-  renderMap(map: GameMap): void {
+  renderMap(map: GameMap, center?: Position): void {
+    this.currentMap = map;
+    this.renderCenter = center ?? { x: 0, y: 0 };
+
     // Clear existing tiles
     this.infiniteFloorGroup.clear();
     this.tileGroup.clear();
     this.tileMeshes.clear();
 
-    // Geometries
+    // Reusable geometries
     const tileGeometry = new THREE.BoxGeometry(TILE_SIZE * 0.95, TILE_HEIGHT, TILE_SIZE * 0.95);
     const wallGeometry = new THREE.BoxGeometry(TILE_SIZE * 0.95, TILE_SIZE, TILE_SIZE * 0.95);
     const pillarGeometry = new THREE.CylinderGeometry(TILE_SIZE * 0.3, TILE_SIZE * 0.35, TILE_SIZE, 8);
@@ -230,41 +278,15 @@ export class IsometricRenderer {
     const bushGeometry = new THREE.SphereGeometry(TILE_SIZE * 0.3, 6, 4);
     const waterGeometry = new THREE.BoxGeometry(TILE_SIZE * 0.95, TILE_HEIGHT * 0.5, TILE_SIZE * 0.95);
 
-    // Render infinite floor tiles beyond map boundaries (varied ground)
-    const startX = -INFINITE_EXTEND;
-    const endX = map.size.width + INFINITE_EXTEND;
-    const startY = -INFINITE_EXTEND;
-    const endY = map.size.height + INFINITE_EXTEND;
+    // Render tiles around the center position (infinite world)
+    const startX = this.renderCenter.x - RENDER_RADIUS;
+    const endX = this.renderCenter.x + RENDER_RADIUS;
+    const startY = this.renderCenter.y - RENDER_RADIUS;
+    const endY = this.renderCenter.y + RENDER_RADIUS;
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        // Skip tiles that are within the actual map bounds
-        if (x >= 0 && x < map.size.width && y >= 0 && y < map.size.height) {
-          continue;
-        }
-
-        // Vary the beyond tiles for natural look (all green shades)
-        const noise = this.simpleNoise(x, y);
-        let color: number;
-        if (noise < 0.3) color = COLORS.grass_dark;
-        else if (noise < 0.6) color = COLORS.grass_light;
-        else if (noise < 0.85) color = COLORS.floor;
-        else color = COLORS.grass_light; // Use grass instead of dirt
-
-        const material = new THREE.MeshLambertMaterial({ color });
-        const mesh = new THREE.Mesh(tileGeometry, material);
-        const worldPos = this.posToWorld({ x, y });
-        mesh.position.set(worldPos.x, -TILE_HEIGHT * 0.5, worldPos.z);
-        this.infiniteFloorGroup.add(mesh);
-      }
-    }
-
-    // Render actual map tiles
-    for (let y = 0; y < map.size.height; y++) {
-      for (let x = 0; x < map.size.width; x++) {
-        const tile = map.tiles[y]?.[x];
-        if (!tile) continue;
-
+    for (let y = startY; y <= endY; y++) {
+      for (let x = startX; x <= endX; x++) {
+        const tile = map.getTile(x, y);
         const pos = { x, y };
         let mesh: THREE.Mesh;
 
@@ -281,7 +303,6 @@ export class IsometricRenderer {
           }
           case "water":
           case "water_deep": {
-            // Water is slightly lower and transparent-looking
             const colorKey = tile.type as keyof typeof COLORS;
             const material = new THREE.MeshLambertMaterial({
               color: COLORS[colorKey],
@@ -304,7 +325,11 @@ export class IsometricRenderer {
             mesh.position.y = TILE_SIZE / 2 - TILE_HEIGHT / 2;
             break;
           }
-          case "rock": {
+          case "rock":
+          case "rock_mossy":
+          case "rock_large":
+          case "boulder":
+          case "stone_pile": {
             // Ground tile underneath
             const groundMat = new THREE.MeshLambertMaterial({ color: COLORS.dirt });
             const groundMesh = new THREE.Mesh(tileGeometry, groundMat);
@@ -313,14 +338,22 @@ export class IsometricRenderer {
             this.tileGroup.add(groundMesh);
 
             // Rock on top
-            const rockMat = new THREE.MeshLambertMaterial({ color: COLORS.rock });
+            const rockColor = COLORS[tile.type as keyof typeof COLORS] || COLORS.rock;
+            const rockMat = new THREE.MeshLambertMaterial({ color: rockColor });
+            const scale = tile.type === "rock_large" || tile.type === "boulder" ? 1.3 : tile.type === "stone_pile" ? 0.8 : 1.0;
             mesh = new THREE.Mesh(rockGeometry, rockMat);
-            mesh.position.y = TILE_SIZE * 0.3;
-            mesh.rotation.x = Math.random() * 0.5;
-            mesh.rotation.z = Math.random() * 0.5;
+            mesh.scale.set(scale, scale, scale);
+            mesh.position.y = TILE_SIZE * 0.3 * scale;
+            // Use deterministic rotation based on position
+            mesh.rotation.x = this.simpleNoise(x, y) * 0.5;
+            mesh.rotation.z = this.simpleNoise(y, x) * 0.5;
             break;
           }
-          case "tree": {
+          case "tree":
+          case "tree_pine":
+          case "tree_oak":
+          case "tree_dead":
+          case "tree_small": {
             // Ground tile underneath
             const groundMat = new THREE.MeshLambertMaterial({ color: COLORS.grass_dark });
             const groundMesh = new THREE.Mesh(tileGeometry, groundMat);
@@ -328,16 +361,25 @@ export class IsometricRenderer {
             groundMesh.position.set(worldPos.x, 0, worldPos.z);
             this.tileGroup.add(groundMesh);
 
+            const treeScale = tile.type === "tree_small" ? 0.7 : tile.type === "tree_oak" ? 1.2 : 1.0;
+            const trunkColor = tile.type === "tree_dead" ? 0x5a4a3a : COLORS.tree_trunk;
+
             // Tree trunk
-            const trunkMat = new THREE.MeshLambertMaterial({ color: COLORS.tree_trunk });
+            const trunkMat = new THREE.MeshLambertMaterial({ color: trunkColor });
             const trunkMesh = new THREE.Mesh(treeTrunkGeometry, trunkMat);
-            trunkMesh.position.set(worldPos.x, TILE_SIZE * 0.2, worldPos.z);
+            trunkMesh.scale.set(treeScale, treeScale, treeScale);
+            trunkMesh.position.set(worldPos.x, TILE_SIZE * 0.2 * treeScale, worldPos.z);
             this.tileGroup.add(trunkMesh);
 
-            // Tree top (cone)
-            const treeMat = new THREE.MeshLambertMaterial({ color: COLORS.tree });
+            // Tree top
+            const treeColor = COLORS[tile.type as keyof typeof COLORS] || COLORS.tree;
+            const treeMat = new THREE.MeshLambertMaterial({ color: treeColor });
             mesh = new THREE.Mesh(treeTopGeometry, treeMat);
-            mesh.position.y = TILE_SIZE * 0.6;
+            mesh.scale.set(treeScale, treeScale, treeScale);
+            mesh.position.y = TILE_SIZE * 0.6 * treeScale;
+            if (tile.type === "tree_dead") {
+              mesh.scale.set(treeScale * 0.3, treeScale * 0.5, treeScale * 0.3);
+            }
             break;
           }
           case "bush": {
@@ -348,14 +390,12 @@ export class IsometricRenderer {
             groundMesh.position.set(worldPos.x, 0, worldPos.z);
             this.tileGroup.add(groundMesh);
 
-            // Bush sphere
             const bushMat = new THREE.MeshLambertMaterial({ color: COLORS.bush });
             mesh = new THREE.Mesh(bushGeometry, bushMat);
             mesh.position.y = TILE_SIZE * 0.25;
             break;
           }
           default: {
-            // Fallback to floor
             const material = new THREE.MeshLambertMaterial({ color: COLORS.floor });
             mesh = new THREE.Mesh(tileGeometry, material);
           }
@@ -369,6 +409,22 @@ export class IsometricRenderer {
 
         this.tileGroup.add(mesh);
         this.tileMeshes.set(this.posKey(pos), mesh);
+      }
+    }
+  }
+
+  /**
+   * Update the render center and re-render tiles if needed.
+   * Call this when the player moves significantly.
+   */
+  updateRenderCenter(center: Position): void {
+    const dx = Math.abs(center.x - this.renderCenter.x);
+    const dy = Math.abs(center.y - this.renderCenter.y);
+
+    // Only re-render if moved more than 10 tiles from current center
+    if (dx > 10 || dy > 10) {
+      if (this.currentMap) {
+        this.renderMap(this.currentMap, center);
       }
     }
   }
@@ -560,13 +616,10 @@ export class IsometricRenderer {
       mesh.userData.unitId = unit.id;
       mesh.userData.originalColor = color;
 
-      // Billboard: make sprite face camera (rotate to face isometric view)
-      mesh.rotation.x = -Math.PI / 6; // Tilt slightly
-      mesh.lookAt(
-        mesh.position.x + this.camera.position.x,
-        mesh.position.y + this.camera.position.y,
-        mesh.position.z + this.camera.position.z
-      );
+      // Billboard: make sprite face camera (isometric view at 45 degrees)
+      // Rotate to face camera direction (camera is at 45 degrees around Y axis)
+      mesh.rotation.y = Math.PI / 4; // 45 degrees to face isometric camera
+      mesh.rotation.x = -Math.PI / 8; // Slight tilt toward camera
 
       this.unitGroup.add(mesh);
       this.unitMeshes.set(unit.id, mesh);
@@ -637,11 +690,11 @@ export class IsometricRenderer {
   }
 
   /**
-   * Center camera on the map.
+   * Center camera on a position (defaults to origin for infinite maps).
    */
-  centerCamera(mapSize: { width: number; height: number }): void {
-    const centerX = (mapSize.width / 2 - 10) * TILE_SIZE;
-    const centerZ = (mapSize.height / 2 - 10) * TILE_SIZE;
+  centerCamera(position: { x: number; y: number } = { x: 0, y: 0 }): void {
+    const centerX = position.x * TILE_SIZE;
+    const centerZ = position.y * TILE_SIZE;
 
     this.camera.position.set(centerX + 20, 20, centerZ + 20);
     this.camera.lookAt(centerX, 0, centerZ);
@@ -714,6 +767,158 @@ export class IsometricRenderer {
       this.render();
     };
     animate();
+  }
+
+  /**
+   * Add a loot bag at the given position.
+   */
+  addLootBag(lootDrop: LootDrop): void {
+    const worldPos = this.posToWorld(lootDrop.position);
+
+    // Create a group to hold the bag and its animation
+    const lootGroup = new THREE.Group();
+    lootGroup.userData.position = lootDrop.position;
+    lootGroup.userData.lootId = lootDrop.id;
+
+    // Create a simple treasure bag/chest shape
+    // Main bag body
+    const bagGeometry = new THREE.BoxGeometry(0.4, 0.35, 0.3);
+    const bagMaterial = new THREE.MeshLambertMaterial({ color: COLORS.lootBag });
+    const bagMesh = new THREE.Mesh(bagGeometry, bagMaterial);
+    bagMesh.position.y = 0.175;
+    lootGroup.add(bagMesh);
+
+    // Bag top (darker)
+    const topGeometry = new THREE.BoxGeometry(0.44, 0.08, 0.34);
+    const topMaterial = new THREE.MeshLambertMaterial({ color: COLORS.lootBagDark });
+    const topMesh = new THREE.Mesh(topGeometry, topMaterial);
+    topMesh.position.y = 0.35;
+    lootGroup.add(topMesh);
+
+    // Position the group
+    lootGroup.position.set(worldPos.x, TILE_HEIGHT + 0.01, worldPos.z);
+
+    // Add bouncing animation data
+    lootGroup.userData.animPhase = Math.random() * Math.PI * 2;
+    lootGroup.userData.baseY = TILE_HEIGHT + 0.01;
+
+    this.lootGroup.add(lootGroup);
+    this.lootMeshes.set(lootDrop.id, lootGroup);
+
+    // Start bounce animation for this loot
+    this.animateLoot(lootDrop.id);
+  }
+
+  /**
+   * Remove a loot bag by ID.
+   */
+  removeLootBag(lootDropId: string): void {
+    const lootGroup = this.lootMeshes.get(lootDropId);
+    if (lootGroup) {
+      this.lootGroup.remove(lootGroup);
+      this.lootMeshes.delete(lootDropId);
+    }
+  }
+
+  /**
+   * Animate a loot bag with a gentle bounce.
+   */
+  private animateLoot(lootId: string): void {
+    const animate = () => {
+      const lootGroup = this.lootMeshes.get(lootId);
+      if (!lootGroup) return; // Stop if loot was removed
+
+      const phase = lootGroup.userData.animPhase as number;
+      const baseY = lootGroup.userData.baseY as number;
+      const time = performance.now() / 1000;
+
+      // Gentle bounce
+      lootGroup.position.y = baseY + Math.sin(time * 2 + phase) * 0.05;
+
+      requestAnimationFrame(animate);
+    };
+    animate();
+  }
+
+  /**
+   * Clear all loot bags.
+   */
+  clearLoot(): void {
+    this.lootGroup.clear();
+    this.lootMeshes.clear();
+  }
+
+  /**
+   * Create the merchant shop building at a position.
+   */
+  createShop(position: Position): void {
+    // Remove existing shop if any
+    if (this.shopMesh) {
+      this.shopGroup.remove(this.shopMesh);
+    }
+
+    const worldPos = this.posToWorld(position);
+    const shop = new THREE.Group();
+    shop.userData.position = position;
+
+    // Shop base/floor (wooden platform)
+    const baseGeometry = new THREE.BoxGeometry(1.8, 0.1, 1.4);
+    const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // brown wood
+    const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+    baseMesh.position.y = 0.05;
+    shop.add(baseMesh);
+
+    // Main building body
+    const bodyGeometry = new THREE.BoxGeometry(1.6, 1.0, 1.2);
+    const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xa0522d }); // sienna
+    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    bodyMesh.position.y = 0.6;
+    shop.add(bodyMesh);
+
+    // Roof (darker)
+    const roofGeometry = new THREE.BoxGeometry(1.9, 0.15, 1.5);
+    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 }); // dark brown
+    const roofMesh = new THREE.Mesh(roofGeometry, roofMaterial);
+    roofMesh.position.y = 1.15;
+    shop.add(roofMesh);
+
+    // Awning/canopy (colorful)
+    const awningGeometry = new THREE.BoxGeometry(1.9, 0.08, 0.6);
+    const awningMaterial = new THREE.MeshLambertMaterial({ color: 0xdc143c }); // crimson red
+    const awningMesh = new THREE.Mesh(awningGeometry, awningMaterial);
+    awningMesh.position.set(0, 0.95, 0.8);
+    awningMesh.rotation.x = -0.2;
+    shop.add(awningMesh);
+
+    // Shop sign board
+    const signGeometry = new THREE.BoxGeometry(0.8, 0.3, 0.05);
+    const signMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 }); // gold
+    const signMesh = new THREE.Mesh(signGeometry, signMaterial);
+    signMesh.position.set(0, 1.35, 0.1);
+    shop.add(signMesh);
+
+    // Counter/window opening
+    const counterGeometry = new THREE.BoxGeometry(0.8, 0.4, 0.1);
+    const counterMaterial = new THREE.MeshLambertMaterial({ color: 0x2f1f0f }); // dark opening
+    const counterMesh = new THREE.Mesh(counterGeometry, counterMaterial);
+    counterMesh.position.set(0, 0.5, 0.56);
+    shop.add(counterMesh);
+
+    // Position the shop
+    shop.position.set(worldPos.x, TILE_HEIGHT + 0.01, worldPos.z);
+
+    this.shopGroup.add(shop);
+    this.shopMesh = shop;
+  }
+
+  /**
+   * Remove the shop building.
+   */
+  removeShop(): void {
+    if (this.shopMesh) {
+      this.shopGroup.remove(this.shopMesh);
+      this.shopMesh = null;
+    }
   }
 
   /**

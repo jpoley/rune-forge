@@ -15,20 +15,33 @@ import {
 } from "./index.js";
 
 describe("Map Generation", () => {
-  test("generates a map with correct dimensions", () => {
-    const state = generateGameState({ seed: 12345, mapWidth: 20, mapHeight: 20 });
+  test("generates an infinite map with getTile function", () => {
+    const state = generateGameState({ seed: 12345 });
 
-    expect(state.map.size.width).toBe(20);
-    expect(state.map.size.height).toBe(20);
-    expect(state.map.tiles.length).toBe(20);
-    expect(state.map.tiles[0]!.length).toBe(20);
+    // Infinite map should have getTile function
+    expect(typeof state.map.getTile).toBe("function");
+    expect(state.map.seed).toBe(12345);
+
+    // Should be able to get tiles at any coordinate
+    const tile1 = state.map.getTile(0, 0);
+    const tile2 = state.map.getTile(100, 100);
+    const tile3 = state.map.getTile(-50, -50);
+
+    expect(tile1).toHaveProperty("walkable");
+    expect(tile2).toHaveProperty("walkable");
+    expect(tile3).toHaveProperty("walkable");
   });
 
   test("generates deterministic maps with same seed", () => {
     const state1 = generateGameState({ seed: 12345 });
     const state2 = generateGameState({ seed: 12345 });
 
-    expect(state1.map.tiles).toEqual(state2.map.tiles);
+    // Same seed should produce same tiles at same positions
+    for (let x = -10; x <= 10; x++) {
+      for (let y = -10; y <= 10; y++) {
+        expect(state1.map.getTile(x, y)).toEqual(state2.map.getTile(x, y));
+      }
+    }
     expect(state1.units.map(u => u.position)).toEqual(
       state2.units.map(u => u.position)
     );
@@ -67,12 +80,12 @@ describe("Unit Generation", () => {
 
 describe("Combat Initialization", () => {
   test("starts combat and rolls initiative", () => {
-    const state = generateGameState({ seed: 12345 });
+    const state = generateGameState({ seed: 12345, monsterCount: 3 });
     const { state: combatState, events } = startCombat(state, 12345);
 
     expect(combatState.combat.phase).toBe("in_progress");
     expect(combatState.combat.round).toBe(1);
-    expect(combatState.combat.initiativeOrder.length).toBe(4);
+    expect(combatState.combat.initiativeOrder.length).toBe(4); // 1 player + 3 monsters
 
     // Should have combat_started event
     expect(events.some(e => e.type === "combat_started")).toBe(true);
@@ -105,14 +118,28 @@ describe("Pathfinding", () => {
     expect(path![path!.length - 1]).toEqual(goal);
   });
 
-  test("returns null for unreachable positions", () => {
-    const state = generateGameState({ seed: 12345 });
-    const start = state.units[0]!.position;
-    // Wall position (border)
-    const goal = { x: 0, y: 0 };
+  test("returns null for unwalkable destination", () => {
+    // Use high wall density to ensure obstacles exist
+    const state = generateGameState({ seed: 12345, wallDensity: 0.5, monsterCount: 3 });
+    const player = state.units[0]!;
 
-    const path = findPath(start, goal, state.map, state.units, state.units[0]!.id);
+    // Find a nearby unwalkable tile by checking around the player
+    let unwalkablePos: { x: number; y: number } | null = null;
+    for (let dx = -20; dx <= 20 && !unwalkablePos; dx++) {
+      for (let dy = -20; dy <= 20 && !unwalkablePos; dy++) {
+        const pos = { x: player.position.x + dx, y: player.position.y + dy };
+        const tile = state.map.getTile(pos.x, pos.y);
+        if (!tile.walkable) {
+          unwalkablePos = pos;
+        }
+      }
+    }
 
+    // With 50% wall density, we should find an unwalkable tile
+    expect(unwalkablePos).not.toBeNull();
+
+    // Pathfinding to unwalkable destination should return null
+    const path = findPath(player.position, unwalkablePos!, state.map, state.units, player.id);
     expect(path).toBeNull();
   });
 });

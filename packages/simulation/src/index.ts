@@ -43,3 +43,14 @@ export {
   type UnitGeneratorOptions,
   type GameGeneratorOptions,
 } from "./map-generator.js";
+
+// Loot system
+export {
+  generateLootDrop,
+  getEquippedWeaponBonus,
+  collectLoot,
+  canCollectLoot,
+  WEAPON_DEFINITIONS,
+  DEFAULT_INVENTORY,
+  type WeaponDefinition,
+} from "./loot.js";
