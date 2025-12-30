@@ -1,0 +1,437 @@
+/**
+ * WebSocket Message Handlers
+ *
+ * Registers handlers for all game-related WebSocket messages.
+ */
+
+import { getDb } from "../db/index.js";
+import {
+  registerHandler,
+  sendMessage,
+  sendError,
+  broadcastToSession,
+  type TypedWebSocket,
+} from "../ws/index.js";
+import {
+  createSession,
+  joinSession,
+  leaveSession,
+  setPlayerReady,
+  startGame,
+  pauseGame,
+  resumeGame,
+  endSession,
+  kickPlayer,
+  getLobbyState,
+  getSession,
+  getSessionByJoinCode,
+} from "./session.js";
+import { initializeGame, executeGameAction } from "./executor.js";
+import {
+  grantGold,
+  grantXp,
+  grantWeapon,
+  spawnMonster,
+  removeMonster,
+  modifyMonster,
+} from "./dm-commands.js";
+import type {
+  CreateGamePayload,
+  JoinGamePayload,
+  ReadyPayload,
+  ActionPayload,
+  ChatPayload,
+  DMCommand,
+} from "@rune-forge/shared";
+
+/**
+ * Register all game message handlers.
+ */
+export function registerGameHandlers(): void {
+  // =========================================================================
+  // Session Management
+  // =========================================================================
+
+  /**
+   * Create a new game session.
+   */
+  registerHandler("create_game", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    if (!user) {
+      sendError(ws, "AUTH_REQUIRED", "Not authenticated", seq);
+      return;
+    }
+
+    try {
+      const data = payload as CreateGamePayload;
+
+      const session = createSession(user.sub, {
+        maxPlayers: data.config?.maxPlayers ?? 4,
+        mapSeed: data.config?.mapSeed,
+        difficulty: data.config?.difficulty ?? "normal",
+        turnTimeLimit: data.config?.turnTimeLimit ?? 0,
+      });
+
+      // Join the session with character
+      if (data.characterId) {
+        joinSession(session.id, user.sub, data.characterId);
+      }
+
+      // Set connection's session
+      ws.data.sessionId = session.id;
+
+      sendMessage(ws, "game_created", {
+        sessionId: session.id,
+        joinCode: session.joinCode,
+      }, seq);
+
+      // Send lobby state
+      const lobbyState = getLobbyState(session.id);
+      if (lobbyState) {
+        sendMessage(ws, "lobby_state", lobbyState);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create game";
+      sendError(ws, message, message, seq);
+    }
+  });
+
+  /**
+   * Join an existing game.
+   */
+  registerHandler("join_game", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    if (!user) {
+      sendError(ws, "AUTH_REQUIRED", "Not authenticated", seq);
+      return;
+    }
+
+    try {
+      const data = payload as JoinGamePayload;
+
+      // Find session by join code
+      const session = getSessionByJoinCode(data.joinCode);
+      if (!session) {
+        sendError(ws, "SESSION_NOT_FOUND", "Game not found", seq);
+        return;
+      }
+
+      // Join the session
+      joinSession(session.id, user.sub, data.characterId);
+
+      // Set connection's session
+      ws.data.sessionId = session.id;
+
+      // Get user info for broadcast
+      const dbUser = getDb().users.findById(user.sub);
+      const character = getDb().characters.findById(data.characterId);
+
+      // Notify other players
+      broadcastToSession(session.id, "player_joined", {
+        userId: user.sub,
+        name: dbUser?.display_name ?? user.name,
+        characterName: character?.name ?? "Unknown",
+        characterClass: character?.class ?? "warrior",
+      }, ws.data.id);
+
+      sendMessage(ws, "game_joined", {
+        sessionId: session.id,
+      }, seq);
+
+      // Send lobby state
+      const lobbyState = getLobbyState(session.id);
+      if (lobbyState) {
+        sendMessage(ws, "lobby_state", lobbyState);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to join game";
+      sendError(ws, message, message, seq);
+    }
+  });
+
+  /**
+   * Leave the current game.
+   */
+  registerHandler("leave_game", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    const sessionId = ws.data.sessionId;
+
+    if (!user || !sessionId) {
+      sendError(ws, "NOT_IN_SESSION", "Not in a game", seq);
+      return;
+    }
+
+    leaveSession(sessionId, user.sub);
+    ws.data.sessionId = null;
+
+    sendMessage(ws, "left_game", {}, seq);
+  });
+
+  /**
+   * Set ready status in lobby.
+   */
+  registerHandler("ready", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    const sessionId = ws.data.sessionId;
+
+    if (!user || !sessionId) {
+      sendError(ws, "NOT_IN_SESSION", "Not in a game", seq);
+      return;
+    }
+
+    const data = payload as ReadyPayload;
+    setPlayerReady(sessionId, user.sub, data.ready);
+
+    sendMessage(ws, "ready_confirmed", { ready: data.ready }, seq);
+  });
+
+  // =========================================================================
+  // Game Actions
+  // =========================================================================
+
+  /**
+   * Execute a game action.
+   */
+  registerHandler("action", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    const sessionId = ws.data.sessionId;
+
+    if (!user || !sessionId) {
+      sendError(ws, "NOT_IN_SESSION", "Not in a game", seq);
+      return;
+    }
+
+    const data = payload as ActionPayload;
+    const result = executeGameAction(sessionId, user.sub, data.action);
+
+    if (result.success) {
+      sendMessage(ws, "action_result", {
+        valid: true,
+        events: result.events,
+      }, seq);
+    } else {
+      sendMessage(ws, "action_result", {
+        valid: false,
+        reason: result.error,
+      }, seq);
+    }
+  });
+
+  /**
+   * Request full state sync.
+   */
+  registerHandler("request_sync", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    const sessionId = ws.data.sessionId;
+
+    if (!user || !sessionId) {
+      sendError(ws, "NOT_IN_SESSION", "Not in a game", seq);
+      return;
+    }
+
+    const session = getSession(sessionId);
+    if (!session || !session.gameState) {
+      sendError(ws, "GAME_NOT_STARTED", "Game not started", seq);
+      return;
+    }
+
+    // Get player's unit ID
+    const player = getDb().sessions.getPlayer(sessionId, user.sub);
+
+    sendMessage(ws, "full_state", {
+      version: session.stateVersion,
+      gameState: session.gameState,
+      yourUnitId: player?.unitId,
+    }, seq);
+  });
+
+  // =========================================================================
+  // Chat
+  // =========================================================================
+
+  /**
+   * Send a chat message.
+   */
+  registerHandler("chat", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    const sessionId = ws.data.sessionId;
+
+    if (!user) {
+      sendError(ws, "AUTH_REQUIRED", "Not authenticated", seq);
+      return;
+    }
+
+    const data = payload as ChatPayload;
+
+    // Sanitize message
+    const message = data.message.slice(0, 500).trim();
+    if (!message) return;
+
+    const chatPayload = {
+      from: user.sub,
+      fromName: user.name,
+      message,
+      isWhisper: !!data.target,
+      ts: Date.now(),
+    };
+
+    if (data.target) {
+      // Whisper to specific user
+      const targetWs = require("../ws/index.js").getConnectionByUserId(data.target);
+      if (targetWs) {
+        sendMessage(targetWs, "chat_received", chatPayload);
+      }
+      // Also send to sender
+      sendMessage(ws, "chat_received", chatPayload);
+    } else if (sessionId) {
+      // Broadcast to session
+      broadcastToSession(sessionId, "chat_received", chatPayload);
+    }
+  });
+
+  // =========================================================================
+  // DM Commands
+  // =========================================================================
+
+  /**
+   * Execute a DM command.
+   */
+  registerHandler("dm_command", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    const sessionId = ws.data.sessionId;
+
+    if (!user || !sessionId) {
+      sendError(ws, "NOT_IN_SESSION", "Not in a game", seq);
+      return;
+    }
+
+    const session = getSession(sessionId);
+    if (!session) {
+      sendError(ws, "SESSION_NOT_FOUND", "Session not found", seq);
+      return;
+    }
+
+    if (session.dmUserId !== user.sub) {
+      sendError(ws, "DM_REQUIRED", "Only the DM can use this command", seq);
+      return;
+    }
+
+    const data = payload as { command: DMCommand };
+
+    try {
+      switch (data.command.command) {
+        case "start_game":
+          startGame(sessionId, user.sub);
+          initializeGame(sessionId);
+
+          // Send full state to all players
+          const gameSession = getSession(sessionId);
+          if (gameSession?.gameState) {
+            const players = getDb().sessions.getPlayers(sessionId);
+            for (const player of players) {
+              const playerWs = require("../ws/index.js").getConnectionByUserId(player.userId);
+              if (playerWs) {
+                sendMessage(playerWs, "full_state", {
+                  version: gameSession.stateVersion,
+                  gameState: gameSession.gameState,
+                  yourUnitId: player.unitId,
+                });
+              }
+            }
+          }
+          break;
+
+        case "pause_game":
+          pauseGame(sessionId, user.sub);
+          break;
+
+        case "resume_game":
+          resumeGame(sessionId, user.sub);
+          break;
+
+        case "end_game":
+          endSession(sessionId, "dm_ended");
+          break;
+
+        case "kick_player":
+          kickPlayer(sessionId, user.sub, data.command.targetUserId);
+          break;
+
+        case "skip_turn":
+          if (session.gameState) {
+            const result = executeGameAction(sessionId, user.sub, { type: "end_turn" });
+            if (!result.success) {
+              sendError(ws, "INVALID_ACTION", result.error ?? "Failed to skip turn", seq);
+              return;
+            }
+          }
+          break;
+
+        case "grant_gold": {
+          const goldResult = grantGold(session, data.command.targetUserId, data.command.amount);
+          if (!goldResult.success) {
+            sendError(ws, goldResult.error ?? "GRANT_FAILED", goldResult.error ?? "Failed to grant gold", seq);
+            return;
+          }
+          break;
+        }
+
+        case "grant_xp": {
+          const xpResult = grantXp(session, data.command.targetUserId, data.command.amount);
+          if (!xpResult.success) {
+            sendError(ws, xpResult.error ?? "GRANT_FAILED", xpResult.error ?? "Failed to grant XP", seq);
+            return;
+          }
+          break;
+        }
+
+        case "grant_weapon": {
+          const weaponResult = grantWeapon(session, data.command.targetUserId, data.command.weaponId);
+          if (!weaponResult.success) {
+            sendError(ws, weaponResult.error ?? "GRANT_FAILED", weaponResult.error ?? "Failed to grant weapon", seq);
+            return;
+          }
+          break;
+        }
+
+        case "spawn_monster": {
+          const spawnResult = spawnMonster(session, data.command.position, data.command.monsterType);
+          if (!spawnResult.success) {
+            sendError(ws, spawnResult.error ?? "SPAWN_FAILED", spawnResult.error ?? "Failed to spawn monster", seq);
+            return;
+          }
+          break;
+        }
+
+        case "remove_monster": {
+          const removeResult = removeMonster(session, data.command.unitId);
+          if (!removeResult.success) {
+            sendError(ws, removeResult.error ?? "REMOVE_FAILED", removeResult.error ?? "Failed to remove monster", seq);
+            return;
+          }
+          break;
+        }
+
+        case "modify_monster": {
+          const modifyResult = modifyMonster(session, data.command.unitId, data.command.stats);
+          if (!modifyResult.success) {
+            sendError(ws, modifyResult.error ?? "MODIFY_FAILED", modifyResult.error ?? "Failed to modify monster", seq);
+            return;
+          }
+          break;
+        }
+
+        default:
+          sendError(ws, "INVALID_COMMAND", "Unknown command", seq);
+          return;
+      }
+
+      sendMessage(ws, "dm_command_result", { success: true }, seq);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Command failed";
+      sendError(ws, message, message, seq);
+    }
+  });
+
+  console.log("[game] Message handlers registered");
+}
