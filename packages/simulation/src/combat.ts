@@ -340,15 +340,20 @@ function validateAttackAction(
 
   const distance = getDistance(unit.position, target.position);
 
+  // For player, use weapon range if equipped; otherwise use base attack range
+  const attackRange = unit.type === "player"
+    ? getEquippedWeaponRange(state.playerInventory)
+    : unit.stats.attackRange;
+
   // Check attack range
-  if (unit.stats.attackRange === 1) {
+  if (attackRange === 1) {
     // Melee attack
     if (!isAdjacent(unit.position, target.position)) {
       return { valid: false, reason: "Target not in melee range" };
     }
   } else {
     // Ranged attack
-    if (distance > unit.stats.attackRange) {
+    if (distance > attackRange) {
       return { valid: false, reason: "Target out of range" };
     }
 
