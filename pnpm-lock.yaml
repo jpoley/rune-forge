@@ -29,6 +29,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@rune-forge/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@rune-forge/simulation':
         specifier: workspace:*
         version: link:../simulation
@@ -51,6 +54,15 @@ importers:
       '@rune-forge/simulation':
         specifier: workspace:*
         version: link:../simulation
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.1.14
+        version: 1.3.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/shared:
     devDependencies:
       '@types/bun':
         specifier: ^1.1.14
