@@ -625,7 +625,7 @@ Multiplayer ───────────┬─── Party System
 | 1 | Turn-Based Combat | ✅ Done | - | None |
 | 2 | Cutscenes/Dialogue | ❌ None | Large | NPC Profiles |
 | 3 | Character Customization | 🟡 Partial | Medium | None |
-| 4 | Relationship Hearts | ❌ None | Medium | Dialogue System |
+| 4 | Relationship Hearts | ❌ None | Medium | Dialogue System, NPC Profiles |
 | 5 | Skin Tone Slider | ❌ None | Medium | Sprite System Rework |
 | 6 | Class Outfits/Armor | 🟡 Partial | Large | Armor System |
 | 7 | Game Modes | ❌ None | Medium | Spell System, AC System |
