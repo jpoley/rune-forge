@@ -71,6 +71,14 @@ export interface CreateGamePayload {
     difficulty: "easy" | "normal" | "hard";
     /** Turn time limit in seconds (0 = unlimited) */
     turnTimeLimit?: number;
+    /** Number of NPC companions to spawn */
+    npcCount?: number;
+    /** Specific NPC classes to spawn */
+    npcClasses?: string[];
+    /** Number of monsters (overrides difficulty-based count) */
+    monsterCount?: number;
+    /** Override player move range (tiles per turn) */
+    playerMoveRange?: number;
   };
 }
 
@@ -156,13 +164,14 @@ export interface AttackAction {
 /** End turn action */
 export interface EndTurnAction {
   type: "end_turn";
+  unitId: string;
 }
 
 /** Collect loot action */
 export interface CollectLootAction {
   type: "collect_loot";
   unitId: string;
-  lootId: string;
+  lootDropId: string;
 }
 
 /** Union of all game actions */
@@ -230,7 +239,9 @@ export type DMCommand =
   | { command: "remove_monster"; unitId: string }
   | { command: "modify_monster"; unitId: string; stats: Record<string, number> }
   | { command: "skip_turn" }
-  | { command: "kick_player"; targetUserId: string };
+  | { command: "kick_player"; targetUserId: string }
+  | { command: "heal_all_players" }
+  | { command: "heal_player"; targetUserId: string; amount?: number };
 
 /** DM command payload */
 export interface DMCommandPayload {
@@ -251,12 +262,15 @@ export interface FullStatePayload {
 
 /** Delta state update */
 export interface DeltaStatePayload {
-  /** Previous version this delta applies to */
-  fromVersion: number;
-  /** New version after applying delta */
-  toVersion: number;
-  /** Changes to apply */
-  changes: StateChange[];
+  /** State delta object */
+  delta: {
+    /** Previous version this delta applies to */
+    fromVersion: number;
+    /** New version after applying delta */
+    toVersion: number;
+    /** Changes to apply */
+    changes: StateChange[];
+  };
 }
 
 /** A single state change */

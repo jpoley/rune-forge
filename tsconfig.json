@@ -23,6 +23,7 @@
     "noUncheckedIndexedAccess": false,
     "paths": {
       "@rune-forge/simulation": ["./packages/simulation/src"],
+      "@rune-forge/shared": ["./packages/shared/src"],
       "@rune-forge/server": ["./packages/server/src"],
       "@rune-forge/client": ["./packages/client/src"]
     }

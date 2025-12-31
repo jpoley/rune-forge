@@ -9,13 +9,16 @@ import { randomBytes } from "crypto";
 import { getAuthConfig, isAuthConfigured } from "./config.js";
 import { createSessionToken, getUserFromSession, verifySessionToken } from "./jwt.js";
 import { exchangeCode, getAuthorizationUrl, getLogoutUrl, getUserInfo } from "./oidc.js";
+import { getDb } from "../db/index.js";
 import type { AuthStatus, UserInfo } from "./types.js";
 
 /**
  * Cookie options for auth cookies.
+ * Note: httpOnly is disabled in dev mode so the WebSocket client can read the token.
+ * In production with a proper auth setup, consider using a separate WS auth endpoint.
  */
 const COOKIE_OPTIONS = {
-  httpOnly: true,
+  httpOnly: process.env.NODE_ENV === "production",
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   path: "/",
@@ -90,6 +93,33 @@ function redirectResponse(url: string, headers?: Headers): Response {
 }
 
 /**
+ * Extract client IP address from request.
+ * Checks forwarded headers first (for proxies), then falls back to connection info.
+ */
+function getClientIp(req: Request): string | null {
+  // Check X-Forwarded-For header (common for proxies/load balancers)
+  const forwardedFor = req.headers.get("X-Forwarded-For");
+  if (forwardedFor) {
+    // X-Forwarded-For can contain multiple IPs; the first is the client
+    const firstIp = forwardedFor.split(",")[0].trim();
+    if (firstIp) return firstIp;
+  }
+
+  // Check X-Real-IP header (nginx)
+  const realIp = req.headers.get("X-Real-IP");
+  if (realIp) return realIp;
+
+  // Check CF-Connecting-IP (Cloudflare)
+  const cfIp = req.headers.get("CF-Connecting-IP");
+  if (cfIp) return cfIp;
+
+  // For Bun, we can try to get the IP from the server context
+  // but in the route handler we don't have direct access to it
+  // The server should pass it via a custom header if needed
+  return null;
+}
+
+/**
  * Handle auth routes.
  *
  * @returns Response if route was handled, null otherwise.
@@ -126,13 +156,93 @@ export async function handleAuthRoutes(req: Request): Promise<Response | null> {
     return jsonResponse(status);
   }
 
+  // GET /api/auth/dev-login - Dev mode mock login (only when auth disabled)
+  if (path === "/api/auth/dev-login" && method === "GET") {
+    if (config.authEnabled) {
+      return jsonResponse(
+        { error: "Dev login not available when auth is enabled" },
+        403
+      );
+    }
+
+    // Create a mock user for development
+    const timestamp = Date.now();
+    const mockUser: UserInfo = {
+      sub: `dev-user-${timestamp}`,
+      name: url.searchParams.get("name") || "Dev Player",
+      email: `dev-${timestamp}@localhost`,
+    };
+
+    // Insert user into database (required for foreign key constraints)
+    const db = getDb();
+    const clientIp = getClientIp(req);
+    db.users.upsert({
+      id: mockUser.sub,
+      displayName: mockUser.name ?? "Developer",
+      email: mockUser.email,
+      ipAddress: clientIp,
+    });
+
+    // Create a default character for dev user if they don't have one
+    // Use "default" as ID - it will be unique because each dev login creates a new user
+    const existingDefault = db.characters.findById("default");
+    if (!existingDefault) {
+      db.characters.create(mockUser.sub, {
+        id: "default",
+        name: mockUser.name ?? "Developer",
+        class: "warrior",
+        appearance: {
+          bodyType: "medium",
+          skinTone: "#c4a07a",
+          hairColor: "#3d2314",
+          hairStyle: "short",
+        },
+      });
+      console.log(`[auth] Created default character for dev user: ${mockUser.sub}`);
+    } else if (existingDefault.userId !== mockUser.sub) {
+      // Update the default character to belong to this user
+      db.characters.delete("default", existingDefault.userId);
+      db.characters.create(mockUser.sub, {
+        id: "default",
+        name: mockUser.name ?? "Developer",
+        class: "warrior",
+        appearance: {
+          bodyType: "medium",
+          skinTone: "#c4a07a",
+          hairColor: "#3d2314",
+          hairStyle: "short",
+        },
+      });
+      console.log(`[auth] Reassigned default character to dev user: ${mockUser.sub}`);
+    }
+
+    // Create session token
+    const sessionToken = await createSessionToken(
+      mockUser,
+      "mock-access-token",
+      "mock-id-token",
+      undefined
+    );
+
+    const headers = new Headers();
+    setCookie(
+      headers,
+      "session",
+      sessionToken,
+      config.sessionExpireHours * 60 * 60
+    );
+
+    const redirectUri = url.searchParams.get("redirect_uri") || "/";
+    console.log(`[auth] Dev user logged in: ${mockUser.name} (${mockUser.sub})`);
+    return redirectResponse(redirectUri + "?mode=multi", headers);
+  }
+
   // GET /api/auth/login - Initiate login flow
   if (path === "/api/auth/login" && method === "GET") {
+    // In dev mode without auth, redirect to dev-login
     if (!config.authEnabled) {
-      return jsonResponse(
-        { error: "Authentication is not enabled" },
-        503
-      );
+      const redirectUri = url.searchParams.get("redirect_uri") || "/";
+      return redirectResponse(`/api/auth/dev-login?redirect_uri=${encodeURIComponent(redirectUri)}`);
     }
 
     if (!isAuthConfigured()) {
@@ -200,6 +310,16 @@ export async function handleAuthRoutes(req: Request): Promise<Response | null> {
 
       // Get user info
       const user = await getUserInfo(tokens.accessToken);
+
+      // Store/update user in database with IP address
+      const db = getDb();
+      const clientIp = getClientIp(req);
+      db.users.upsert({
+        id: user.sub,
+        displayName: user.name ?? "Unknown",
+        email: user.email,
+        ipAddress: clientIp,
+      });
 
       // Create session token
       const sessionToken = await createSessionToken(

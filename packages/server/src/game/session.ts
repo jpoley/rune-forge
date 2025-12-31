@@ -59,9 +59,10 @@ export function createSession(
 ): GameSessionState {
   const db = getDb();
 
-  // Check if user is already in a session
-  const existingSession = db.sessions.findUserActiveSession(dmUserId);
-  if (existingSession) {
+  // Check if user is already in a session (as DM or player)
+  const existingSessions = db.sessions.findActiveByUserId(dmUserId);
+  if (existingSessions.length > 0) {
+    console.log(`[game] User ${dmUserId} already in session: ${existingSessions[0].id}`);
     throw new Error("ALREADY_IN_SESSION");
   }
 
@@ -113,7 +114,12 @@ export function joinSession(
   }
 
   // Verify character belongs to user
-  if (!db.characters.belongsToUser(characterId, userId)) {
+  const characterBelongs = db.characters.belongsToUser(characterId, userId);
+  console.log(`[game] Checking character ownership: ${characterId} belongs to ${userId}? ${characterBelongs}`);
+  if (!characterBelongs) {
+    // Debug: try to find the character
+    const char = db.characters.findById(characterId);
+    console.log(`[game] Character lookup: ${char ? `found (owner: ${char.userId})` : "NOT FOUND in DB"}`);
     throw new Error("CHARACTER_NOT_FOUND");
   }
 
@@ -219,11 +225,12 @@ export function startGame(sessionId: string, dmUserId: string): void {
     throw new Error("GAME_ALREADY_STARTED");
   }
 
-  // Check minimum players (at least 1 player besides DM)
+  // Check minimum players (at least 2 players total including DM)
   const players = db.sessions.getPlayers(sessionId);
-  if (players.length === 0) {
+  if (players.length < 1) {
     throw new Error("NOT_ENOUGH_PLAYERS");
   }
+  // Note: DM + 1 player = 2 minimum for a party
 
   // Update status
   db.sessions.updateStatus(sessionId, "playing");
@@ -347,7 +354,8 @@ export function getLobbyState(sessionId: string): {
   joinCode: string;
   config: SessionConfig;
   players: Array<{
-    userId: string;
+    id: string;
+    name: string;
     characterName: string;
     characterClass: string;
     ready: boolean;
@@ -364,8 +372,10 @@ export function getLobbyState(sessionId: string): {
   const dbPlayers = db.sessions.getPlayers(sessionId);
   const players = dbPlayers.map((p) => {
     const character = db.characters.findById(p.characterId);
+    const user = db.users.findById(p.userId);
     return {
-      userId: p.userId,
+      id: p.userId,
+      name: user?.display_name ?? "Unknown",
       characterName: character?.name ?? "Unknown",
       characterClass: character?.class ?? "warrior",
       ready: p.isReady,

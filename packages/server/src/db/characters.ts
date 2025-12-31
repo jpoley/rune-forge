@@ -243,7 +243,7 @@ export class CharacterRepository {
 
     this.db.run(
       `UPDATE characters SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
-      values
+      values as import("bun:sqlite").SQLQueryBindings[]
     );
 
     return this.findById(id);
@@ -257,6 +257,17 @@ export class CharacterRepository {
     this.db.run(
       "UPDATE characters SET xp = xp + ?, updated_at = ? WHERE id = ?",
       [amount, now, id]
+    );
+  }
+
+  /**
+   * Update character progression (level and XP).
+   */
+  updateProgression(id: string, progression: { xp: number; level: number }): void {
+    const now = Math.floor(Date.now() / 1000);
+    this.db.run(
+      "UPDATE characters SET xp = ?, level = ?, updated_at = ? WHERE id = ?",
+      [progression.xp, progression.level, now, id]
     );
   }
 
