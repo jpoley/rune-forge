@@ -119,10 +119,16 @@ jobs:
             p/security-audit
             p/typescript
             p/nodejs
-          generateSarif: true
+
+      - name: Run Semgrep for SARIF output
+        continue-on-error: true
+        run: |
+          pip install semgrep
+          semgrep scan --config p/security-audit --config p/typescript --config p/nodejs --sarif --output semgrep.sarif . || true
 
       - name: Upload SARIF
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
@@ -208,14 +214,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install CycloneDX
-        run: npm install -g @cyclonedx/cyclonedx-npm
+      - name: Install cdxgen
+        run: npm install -g @cyclonedx/cdxgen
 
       - name: Generate SBOM (JSON)
-        run: cyclonedx-npm --output-file sbom.json
+        run: cdxgen -o sbom.json --format json .
 
       - name: Generate SBOM (XML)
-        run: cyclonedx-npm --output-format XML --output-file sbom.xml
+        run: cdxgen -o sbom.xml --format xml .
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
