@@ -225,9 +225,10 @@ describe("Valid Targets", () => {
     )!;
 
     for (const target of moveTargets) {
-      const distance =
-        Math.abs(target.x - currentUnit.position.x) +
-        Math.abs(target.y - currentUnit.position.y);
+      // Use Chebyshev distance (max of |dx|, |dy|) since game allows 8-directional movement
+      const dx = Math.abs(target.x - currentUnit.position.x);
+      const dy = Math.abs(target.y - currentUnit.position.y);
+      const distance = Math.max(dx, dy);
       expect(distance).toBeLessThanOrEqual(currentUnit.stats.moveRange);
     }
   });
