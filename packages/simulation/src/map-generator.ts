@@ -188,8 +188,8 @@ export function isSpawnArea(x: number, y: number, spawnPoints: Position[]): bool
  */
 function hashPosition(x: number, y: number, seed: number): number {
   // Ensure integer inputs
-  let ix = Math.floor(x) | 0;
-  let iy = Math.floor(y) | 0;
+  const ix = Math.floor(x) | 0;
+  const iy = Math.floor(y) | 0;
   let h = Math.floor(seed) | 0;
 
   // Mix coordinates with seed using multiplication and XOR
@@ -246,11 +246,146 @@ const MONSTER_TYPES = [
   { name: "Imp", hpMod: -10, attackMod: -1, initMod: 4 },
 ] as const;
 
+// =============================================================================
+// NPC Companion Types
+// =============================================================================
+
+// NPC class types with stat modifiers and abilities
+export interface NPCClass {
+  readonly name: string;
+  readonly displayName: string;
+  readonly hpMod: number;
+  readonly attackMod: number;
+  readonly defenseMod: number;
+  readonly initMod: number;
+  readonly rangeMod: number; // 0 = melee, 1+ = ranged
+}
+
+export const NPC_CLASSES: readonly NPCClass[] = [
+  { name: "warrior", displayName: "Warrior", hpMod: 10, attackMod: 2, defenseMod: 2, initMod: -1, rangeMod: 0 },
+  { name: "archer", displayName: "Archer", hpMod: -5, attackMod: 2, defenseMod: -1, initMod: 2, rangeMod: 4 },
+  { name: "mage", displayName: "Mage", hpMod: -10, attackMod: 4, defenseMod: -2, initMod: 1, rangeMod: 5 },
+  { name: "cleric", displayName: "Cleric", hpMod: 5, attackMod: -1, defenseMod: 1, initMod: 0, rangeMod: 0 },
+  { name: "rogue", displayName: "Rogue", hpMod: -5, attackMod: 3, defenseMod: 0, initMod: 4, rangeMod: 0 },
+] as const;
+
+// NPC name pools
+const NPC_FIRST_NAMES = [
+  "Aldric", "Brynn", "Cedric", "Dara", "Elric", "Fiona", "Gareth", "Hilda",
+  "Ivan", "Jade", "Kira", "Lyra", "Magnus", "Nora", "Owen", "Petra",
+  "Quinn", "Raven", "Soren", "Thora", "Uri", "Vera", "Wren", "Xena", "Yuri", "Zara",
+];
+
+const NPC_BASE_STATS: UnitStats = {
+  hp: 30,
+  maxHp: 30,
+  attack: 7,
+  defense: 4,
+  initiative: 10,
+  moveRange: 4,
+  attackRange: 1,
+};
+
+// NPC spawn offsets (close to player, friendly positions)
+const NPC_SPAWN_OFFSETS: Position[] = [
+  { x: -2, y: 0 },
+  { x: 2, y: 0 },
+  { x: 0, y: -2 },
+  { x: 0, y: 2 },
+  { x: -2, y: -2 },
+  { x: 2, y: -2 },
+  { x: -2, y: 2 },
+  { x: 2, y: 2 },
+];
+
+export interface NPCGeneratorOptions {
+  seed: number;
+  playerStart?: Position;
+  count: number;
+  /** Specific class names to use (e.g., ["warrior", "archer", "archer"]). If provided, count is ignored. */
+  classes?: string[];
+  /** Override move range for all generated units (default: from class stats) */
+  moveRange?: number;
+}
+
+/** Get NPC class by name */
+export function getNPCClass(name: string): NPCClass | undefined {
+  return NPC_CLASSES.find(c => c.name === name);
+}
+
+/** Get all available NPC class names */
+export function getNPCClassNames(): string[] {
+  return NPC_CLASSES.map(c => c.name);
+}
+
+/**
+ * Generate NPC companions. If classes are specified, uses those (allows duplicates).
+ * Otherwise generates random NPCs up to count.
+ */
+export function generateNPCs(options: NPCGeneratorOptions): Unit[] {
+  const rng = new SeededRandom(options.seed + 2000);
+  const playerStart = options.playerStart ?? { x: 0, y: 0 };
+  const npcs: Unit[] = [];
+
+  // Shuffle spawn positions
+  const shuffledSpawns = rng.shuffle([...NPC_SPAWN_OFFSETS]);
+
+  // Determine which classes to use
+  const classesToUse: NPCClass[] = [];
+  if (options.classes && options.classes.length > 0) {
+    // Use specific classes (allows duplicates)
+    for (const className of options.classes) {
+      const npcClass = getNPCClass(className);
+      if (npcClass) {
+        classesToUse.push(npcClass);
+      }
+    }
+  } else {
+    // Random classes up to count
+    for (let i = 0; i < options.count; i++) {
+      classesToUse.push(NPC_CLASSES[rng.nextInt(0, NPC_CLASSES.length - 1)]!);
+    }
+  }
+
+  for (let i = 0; i < classesToUse.length && i < shuffledSpawns.length; i++) {
+    const npcClass = classesToUse[i]!;
+    // Pick random name
+    const firstName = NPC_FIRST_NAMES[rng.nextInt(0, NPC_FIRST_NAMES.length - 1)]!;
+
+    const baseHp = NPC_BASE_STATS.maxHp + npcClass.hpMod;
+    const maxHp = baseHp + rng.nextInt(-2, 2);
+
+    const npc: Unit = {
+      id: `npc-${i + 1}`,
+      type: "npc",
+      name: `${firstName} (${npcClass.displayName})`,
+      position: {
+        x: playerStart.x + shuffledSpawns[i]!.x,
+        y: playerStart.y + shuffledSpawns[i]!.y,
+      },
+      stats: {
+        hp: maxHp,
+        maxHp,
+        attack: NPC_BASE_STATS.attack + npcClass.attackMod + rng.nextInt(-1, 1),
+        defense: NPC_BASE_STATS.defense + npcClass.defenseMod,
+        initiative: NPC_BASE_STATS.initiative + npcClass.initMod + rng.nextInt(-1, 1),
+        moveRange: options.moveRange ?? NPC_BASE_STATS.moveRange,
+        attackRange: NPC_BASE_STATS.attackRange + npcClass.rangeMod,
+      },
+    };
+    npcs.push(npc);
+  }
+
+  return npcs;
+}
+
 export interface UnitGeneratorOptions {
   seed: number;
   playerStart?: Position;
   playerName?: string;
   monsterCount?: number;
+  /** Override move range for the player unit (default: from base stats) */
+  playerMoveRange?: number;
 }
 
 // Monster spawn offsets from player start (for infinite world)
@@ -281,7 +416,10 @@ export function generateUnits(options: UnitGeneratorOptions): Unit[] {
     type: "player",
     name: options.playerName ?? "Hero",
     position: playerStart,
-    stats: { ...PLAYER_BASE_STATS },
+    stats: {
+      ...PLAYER_BASE_STATS,
+      moveRange: options.playerMoveRange ?? PLAYER_BASE_STATS.moveRange,
+    },
   };
   units.push(player);
 
@@ -328,6 +466,8 @@ export interface GameGeneratorOptions {
   playerName?: string;
   playerStart?: Position;
   monsterCount?: number;
+  /** Number of NPC companions to add (0-7, default 0) */
+  npcCount?: number;
 }
 
 /**
@@ -350,6 +490,17 @@ export function generateGameState(options: GameGeneratorOptions): import("./type
   if (options.monsterCount !== undefined) unitOptions.monsterCount = options.monsterCount;
 
   const units = generateUnits(unitOptions);
+
+  // Generate NPC companions if requested
+  const npcCount = options.npcCount ?? 0;
+  if (npcCount > 0) {
+    const npcs = generateNPCs({
+      seed: options.seed,
+      playerStart,
+      count: Math.min(npcCount, 7), // Max 7 NPCs
+    });
+    units.push(...npcs);
+  }
 
   // Generate a test loot bag near player start
   const testLootDrops: LootDrop[] = [];

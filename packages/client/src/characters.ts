@@ -149,6 +149,13 @@ export const MONSTER_TYPES: MonsterType[] = [
     color: 0x884488,
     stats: { hp: 45, attack: 15, defense: 3, initiative: 11, moveRange: 2, attackRange: 4 },
   },
+  {
+    id: "imp",
+    name: "Imp",
+    sprite: "/sprites/monsters/imp.svg",
+    color: 0xcc4444,
+    stats: { hp: 15, attack: 4, defense: 2, initiative: 14, moveRange: 5, attackRange: 1 },
+  },
 ];
 
 export function getCharacterClass(id: string): CharacterClass | undefined {

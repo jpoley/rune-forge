@@ -78,7 +78,7 @@ export const TILE_DEFINITIONS: Record<TileType, Omit<Tile, "type">> = {
 // Units
 // =============================================================================
 
-export type UnitType = "player" | "monster";
+export type UnitType = "player" | "monster" | "npc";
 
 export interface UnitStats {
   readonly hp: number;
@@ -90,12 +90,17 @@ export interface UnitStats {
   readonly attackRange: number; // 1 for melee, > 1 for ranged
 }
 
+export type Team = "player" | "monster" | "neutral";
+
 export interface Unit {
   readonly id: string;
   readonly type: UnitType;
   readonly name: string;
   readonly position: Position;
   readonly stats: UnitStats;
+  readonly team?: Team;        // For multiplayer team assignment
+  readonly isPlayer?: boolean; // True if controlled by a human player
+  readonly hp?: number;        // Current HP (defaults to stats.maxHp)
 }
 
 // =============================================================================
@@ -124,6 +129,7 @@ export interface PlayerInventory {
   readonly gold: number;
   readonly silver: number;
   readonly weapons: ReadonlyArray<LootItem>;
+  readonly items?: ReadonlyArray<LootItem>;  // All items (weapons, consumables, etc.)
   readonly equippedWeaponId: string | null;
 }
 
@@ -152,7 +158,7 @@ export interface InitiativeEntry {
   readonly roll: number; // initiative stat + any random component
 }
 
-export type CombatPhase = "not_started" | "in_progress" | "victory" | "defeat";
+export type CombatPhase = "not_started" | "setup" | "in_progress" | "victory" | "defeat";
 
 export type TurnPhase = "move" | "action" | "ended";
 
@@ -165,9 +171,10 @@ export interface TurnState {
 
 export interface CombatState {
   readonly phase: CombatPhase;
-  readonly round: number;
+  readonly round: number;                 // Current round number
+  readonly turnNumber?: number;           // Cumulative turn count across all rounds
   readonly initiativeOrder: ReadonlyArray<InitiativeEntry>;
-  readonly currentTurnIndex: number;
+  readonly currentTurnIndex: number;      // Index in initiativeOrder
   readonly turnState: TurnState | null;
 }
 
@@ -181,6 +188,7 @@ export interface GameState {
   readonly combat: CombatState;
   readonly turnHistory: ReadonlyArray<GameEvent>; // For replay/debugging
   readonly lootDrops: ReadonlyArray<LootDrop>;
+  readonly loot?: ReadonlyArray<LootDrop>;        // Alias for lootDrops (legacy)
   readonly playerInventory: PlayerInventory;
 }
 

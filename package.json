@@ -4,15 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --filter '*' dev",
-    "dev:server": "bun run --filter @rune-forge/server dev",
-    "dev:client": "bun run --filter @rune-forge/client dev",
-    "build": "bun run build:simulation && bun run build:server && bun run build:client",
-    "build:simulation": "bun run --filter @rune-forge/simulation build",
-    "build:server": "bun run --filter @rune-forge/server build",
-    "build:client": "bun run --filter @rune-forge/client build",
-    "test": "bun run --filter '*' test",
-    "test:simulation": "bun run --filter @rune-forge/simulation test",
+    "dev": "pnpm run --filter '*' dev",
+    "dev:server": "pnpm run --filter @rune-forge/server dev",
+    "dev:client": "pnpm run --filter @rune-forge/client dev",
+    "build": "pnpm run build:shared && pnpm run build:simulation && pnpm run build:server && pnpm run build:client",
+    "build:shared": "pnpm run --filter @rune-forge/shared build",
+    "build:simulation": "pnpm run --filter @rune-forge/simulation build",
+    "build:server": "pnpm run --filter @rune-forge/server build",
+    "build:client": "pnpm run --filter @rune-forge/client build",
+    "test": "pnpm run --filter '*' test",
+    "test:simulation": "pnpm run --filter @rune-forge/simulation test",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf packages/*/dist node_modules/.cache",
@@ -20,12 +21,14 @@
     "docker:run": "docker run -p 3000:3000 rune-forge:latest"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/bun": "^1.1.14",
     "@types/node": "^22.10.2",
-    "typescript": "^5.7.2",
-    "eslint": "^9.17.0",
     "@typescript-eslint/eslint-plugin": "^8.18.1",
-    "@typescript-eslint/parser": "^8.18.1"
+    "@typescript-eslint/parser": "^8.18.1",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.51.0"
   },
   "packageManager": "pnpm@9.15.1",
   "engines": {

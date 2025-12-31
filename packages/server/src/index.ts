@@ -1,27 +1,87 @@
 /**
  * Rune Forge Server
  * Serves the game client and provides REST API for saves.
+ * Includes OIDC authentication with Pocket ID.
+ * Supports multiplayer via WebSockets.
  */
 
-import { getDatabase, closeDatabase } from "./database.js";
+import { initDatabase, closeDb, getDb } from "./db/index.js";
+import { handleAuthRoutes, getAuthConfig } from "./auth/index.js";
+import {
+  handleOpen,
+  handleMessage,
+  handleClose,
+  getConnectionCount,
+  getAuthenticatedCount,
+  type WSConnectionData,
+} from "./ws/index.js";
+import { registerGameHandlers } from "./game/index.js";
 import type { GameState } from "@rune-forge/simulation";
 
-const PORT = Number(process.env.PORT) || 3000;
-const CLIENT_DIR = process.env.CLIENT_DIR || "../client/dist";
+const PORT = Number(process.env.PORT) || 41204;
+const CLIENT_DIR = process.env.CLIENT_DIR || "./packages/client/dist";
 
-// Initialize database
-const db = getDatabase(process.env.DB_PATH || "rune-forge.db");
+// Initialize database (uses .data/rune-forge.db by default)
+const database = initDatabase();
+
+// Register game message handlers
+registerGameHandlers();
+
+// Legacy database interface for saves API (backwards compatibility)
+const db = {
+  save: (slot: number, name: string, gameState: GameState) => {
+    const now = Math.floor(Date.now() / 1000);
+    database.db.run(
+      `INSERT OR REPLACE INTO saves (slot, name, timestamp, version, game_state)
+       VALUES (?, ?, ?, ?, ?)`,
+      [slot, name, now, 1, JSON.stringify(gameState)]
+    );
+    return { slot, name, timestamp: now, version: 1 };
+  },
+  load: (slot: number) => {
+    const row = database.db
+      .query<{ slot: number; name: string; timestamp: number; version: number; game_state: string }, [number]>(
+        "SELECT * FROM saves WHERE slot = ?"
+      )
+      .get(slot);
+    if (!row) return null;
+    return {
+      slot: row.slot,
+      name: row.name,
+      timestamp: row.timestamp,
+      version: row.version,
+      gameState: JSON.parse(row.game_state) as GameState,
+    };
+  },
+  delete: (slot: number) => {
+    const result = database.db.run("DELETE FROM saves WHERE slot = ?", [slot]);
+    return result.changes > 0;
+  },
+  listSaves: () => {
+    const saves: (null | { slot: number; name: string; timestamp: number; version: number })[] =
+      new Array(10).fill(null);
+    const rows = database.db
+      .query<{ slot: number; name: string; timestamp: number; version: number }, []>(
+        "SELECT slot, name, timestamp, version FROM saves ORDER BY slot"
+      )
+      .all();
+    for (const row of rows) {
+      saves[row.slot - 1] = row;
+    }
+    return saves;
+  },
+};
 
 // Handle graceful shutdown
 process.on("SIGINT", () => {
   console.log("\nShutting down...");
-  closeDatabase();
+  closeDb();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
   console.log("\nShutting down...");
-  closeDatabase();
+  closeDb();
   process.exit(0);
 });
 
@@ -127,6 +187,8 @@ async function handleApiRequest(req: Request, path: string): Promise<Response> {
       status: "ok",
       version: "0.1.0",
       timestamp: Date.now(),
+      connections: getConnectionCount(),
+      authenticated: getAuthenticatedCount(),
     });
   }
 
@@ -136,7 +198,7 @@ async function handleApiRequest(req: Request, path: string): Promise<Response> {
 // Static file serving
 async function serveStaticFile(path: string): Promise<Response> {
   // Default to index.html for SPA routing
-  let filePath = path === "/" ? "/index.html" : path;
+  const filePath = path === "/" ? "/index.html" : path;
 
   try {
     const file = Bun.file(`${CLIENT_DIR}${filePath}`);
@@ -194,19 +256,59 @@ function log(message: string): void {
   console.log(`[${timestamp}] ${message}`);
 }
 
-// Main server
-const server = Bun.serve({
+// Main server with WebSocket support
+const server = Bun.serve<WSConnectionData>({
   port: PORT,
-  async fetch(req: Request): Promise<Response> {
+
+  async fetch(req: Request, server): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
     const start = Date.now();
 
+    // Handle WebSocket upgrade at /ws
+    if (path === "/ws") {
+      const upgraded = server.upgrade(req, {
+        data: {
+          id: "",
+          user: null,
+          authDeadline: 0,
+          sessionId: null,
+          lastActivity: Date.now(),
+          seq: 0,
+          status: "connected" as const,
+        },
+      });
+
+      if (upgraded) {
+        log(`${method} ${path} 101 WebSocket upgrade`);
+        return undefined as unknown as Response;
+      }
+
+      return new Response("WebSocket upgrade failed", { status: 400 });
+    }
+
     let response: Response;
 
+    // Get client IP from Bun's server and add to request headers
+    // This allows auth routes to capture the real client IP
+    const socketAddress = server.requestIP(req);
+    const requestWithIp = socketAddress?.address
+      ? new Request(req, {
+          headers: new Headers([
+            ...req.headers.entries(),
+            ["X-Real-IP", socketAddress.address],
+          ]),
+        })
+      : req;
+
+    // Handle auth routes first (login, callback, logout, etc.)
+    const authResponse = await handleAuthRoutes(requestWithIp);
+    if (authResponse) {
+      response = authResponse;
+    }
     // API routes
-    if (path.startsWith("/api/")) {
+    else if (path.startsWith("/api/")) {
       response = await handleApiRequest(req, path);
     } else {
       // Static files
@@ -218,7 +320,20 @@ const server = Bun.serve({
 
     return response;
   },
+
+  websocket: {
+    open: handleOpen,
+    message: handleMessage,
+    close: handleClose,
+  },
 });
 
+// Log server startup info
+const config = getAuthConfig();
 console.log(`🎮 Rune Forge server running at http://localhost:${server.port}`);
 console.log(`📁 Serving client from: ${CLIENT_DIR}`);
+console.log(`🔌 WebSocket endpoint: ws://localhost:${server.port}/ws`);
+console.log(`🔐 Authentication: ${config.authEnabled ? "enabled" : "disabled"}`);
+if (config.authEnabled) {
+  console.log(`   Pocket ID: ${config.pocketIdPublicUrl}`);
+}

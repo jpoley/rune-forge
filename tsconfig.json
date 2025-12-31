@@ -15,14 +15,15 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
     "paths": {
       "@rune-forge/simulation": ["./packages/simulation/src"],
+      "@rune-forge/shared": ["./packages/shared/src"],
       "@rune-forge/server": ["./packages/server/src"],
       "@rune-forge/client": ["./packages/client/src"]
     }

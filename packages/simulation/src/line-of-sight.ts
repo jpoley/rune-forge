@@ -141,9 +141,8 @@ export function isAdjacent(a: Position, b: Position): boolean {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);
 
-  // For v1, melee only works on cardinal directions (not diagonal)
-  // as per grid-based movement spec
-  return (dx === 1 && dy === 0) || (dx === 0 && dy === 1);
+  // Adjacent includes all 8 directions (cardinal + diagonal)
+  return dx <= 1 && dy <= 1 && (dx + dy > 0);
 }
 
 /**

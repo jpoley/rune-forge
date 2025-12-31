@@ -1,0 +1,405 @@
+/**
+ * WebSocket Message Types
+ *
+ * Shared message type definitions for client-server communication.
+ * All messages follow a standard envelope pattern.
+ */
+
+// ============================================================================
+// Base Message Types
+// ============================================================================
+
+/**
+ * Standard message envelope for all WebSocket messages.
+ */
+export interface WSMessage<T = unknown> {
+  /** Message type identifier */
+  type: string;
+  /** Type-specific payload */
+  payload: T;
+  /** Sequence number (client-assigned for requests) */
+  seq: number;
+  /** Timestamp (milliseconds since epoch) */
+  ts: number;
+}
+
+/**
+ * Server response envelope extending the base message.
+ */
+export interface WSResponse<T = unknown> extends WSMessage<T> {
+  /** Original request sequence (for responses) */
+  reqSeq?: number;
+  /** Operation success flag */
+  success: boolean;
+  /** Error message if !success */
+  error?: string;
+}
+
+// ============================================================================
+// Authentication Messages
+// ============================================================================
+
+/** Client sends JWT to authenticate connection */
+export interface AuthPayload {
+  /** JWT session token */
+  token: string;
+}
+
+/** Server response to auth message */
+export interface AuthResultPayload {
+  /** User ID from token */
+  userId: string;
+  /** Display name */
+  name: string;
+}
+
+// ============================================================================
+// Game Session Messages (Lobby)
+// ============================================================================
+
+/** Create a new game session */
+export interface CreateGamePayload {
+  /** Character to use in the game */
+  characterId: string;
+  /** Game configuration */
+  config: {
+    /** Max players (2-8) */
+    maxPlayers: number;
+    /** Map seed (server generates if omitted) */
+    mapSeed?: number;
+    /** Difficulty level */
+    difficulty: "easy" | "normal" | "hard";
+    /** Turn time limit in seconds (0 = unlimited) */
+    turnTimeLimit?: number;
+    /** Number of NPC companions to spawn */
+    npcCount?: number;
+    /** Specific NPC classes to spawn */
+    npcClasses?: string[];
+    /** Number of monsters (overrides difficulty-based count) */
+    monsterCount?: number;
+    /** Override player move range (tiles per turn) */
+    playerMoveRange?: number;
+  };
+}
+
+/** Server response with game details */
+export interface GameCreatedPayload {
+  /** Unique session ID */
+  sessionId: string;
+  /** 6-character join code */
+  joinCode: string;
+}
+
+/** Join an existing game */
+export interface JoinGamePayload {
+  /** 6-character join code */
+  joinCode: string;
+  /** Character to use */
+  characterId: string;
+}
+
+/** Leave current game */
+export type LeaveGamePayload = Record<string, never>;
+
+/** Set ready status in lobby */
+export interface ReadyPayload {
+  /** Ready status */
+  ready: boolean;
+}
+
+/** Player info for lobby updates */
+export interface PlayerInfo {
+  /** User ID */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Character name */
+  characterName: string;
+  /** Ready status */
+  ready: boolean;
+  /** Is this player the DM? */
+  isDM: boolean;
+  /** Is this player connected? */
+  connected: boolean;
+}
+
+/** Lobby state update */
+export interface LobbyStatePayload {
+  /** Session ID */
+  sessionId: string;
+  /** Join code */
+  joinCode: string;
+  /** Game config */
+  config: CreateGamePayload["config"];
+  /** Players in lobby */
+  players: PlayerInfo[];
+  /** Current game state */
+  state: "lobby" | "playing" | "paused" | "ended";
+}
+
+// ============================================================================
+// Game Action Messages
+// ============================================================================
+
+/** Position on the game map */
+export interface Position {
+  x: number;
+  y: number;
+}
+
+/** Move action */
+export interface MoveAction {
+  type: "move";
+  unitId: string;
+  path: Position[];
+}
+
+/** Attack action */
+export interface AttackAction {
+  type: "attack";
+  unitId: string;
+  targetId: string;
+}
+
+/** End turn action */
+export interface EndTurnAction {
+  type: "end_turn";
+  unitId: string;
+}
+
+/** Collect loot action */
+export interface CollectLootAction {
+  type: "collect_loot";
+  unitId: string;
+  lootDropId: string;
+}
+
+/** Union of all game actions */
+export type GameAction =
+  | MoveAction
+  | AttackAction
+  | EndTurnAction
+  | CollectLootAction;
+
+/** Action message payload */
+export interface ActionPayload {
+  action: GameAction;
+}
+
+/** Action result from server */
+export interface ActionResultPayload {
+  /** Whether action was valid and executed */
+  valid: boolean;
+  /** Error reason if invalid */
+  reason?: string;
+  /** Events generated by action */
+  events?: GameEvent[];
+}
+
+// ============================================================================
+// Chat Messages
+// ============================================================================
+
+/** Chat message payload */
+export interface ChatPayload {
+  /** Message content (max 500 chars) */
+  message: string;
+  /** User ID for whisper, omit for broadcast */
+  target?: string;
+}
+
+/** Incoming chat message */
+export interface ChatReceivedPayload {
+  /** Sender user ID */
+  from: string;
+  /** Sender display name */
+  fromName: string;
+  /** Message content */
+  message: string;
+  /** Whether this is a whisper */
+  isWhisper: boolean;
+  /** Timestamp */
+  ts: number;
+}
+
+// ============================================================================
+// DM Command Messages
+// ============================================================================
+
+/** DM command types */
+export type DMCommand =
+  | { command: "start_game" }
+  | { command: "pause_game" }
+  | { command: "resume_game" }
+  | { command: "end_game" }
+  | { command: "grant_weapon"; targetUserId: string; weaponId: string }
+  | { command: "grant_gold"; targetUserId: string; amount: number }
+  | { command: "grant_xp"; targetUserId: string; amount: number }
+  | { command: "spawn_monster"; position: Position; monsterType: string }
+  | { command: "remove_monster"; unitId: string }
+  | { command: "modify_monster"; unitId: string; stats: Record<string, number> }
+  | { command: "skip_turn" }
+  | { command: "kick_player"; targetUserId: string }
+  | { command: "heal_all_players" }
+  | { command: "heal_player"; targetUserId: string; amount?: number };
+
+/** DM command payload */
+export interface DMCommandPayload {
+  command: DMCommand;
+}
+
+// ============================================================================
+// State Synchronization Messages
+// ============================================================================
+
+/** Full game state for initial sync or reconnect */
+export interface FullStatePayload {
+  /** State version number */
+  version: number;
+  /** Complete game state */
+  gameState: unknown; // GameState from simulation package
+}
+
+/** Delta state update */
+export interface DeltaStatePayload {
+  /** State delta object */
+  delta: {
+    /** Previous version this delta applies to */
+    fromVersion: number;
+    /** New version after applying delta */
+    toVersion: number;
+    /** Changes to apply */
+    changes: StateChange[];
+  };
+}
+
+/** A single state change */
+export interface StateChange {
+  /** Path in state object (e.g., "units.0.hp") */
+  path: string;
+  /** New value at path */
+  value: unknown;
+}
+
+/** Game events for animation/feedback */
+export type GameEvent =
+  | { type: "move"; unitId: string; from: Position; to: Position }
+  | {
+      type: "attack";
+      attackerId: string;
+      targetId: string;
+      damage: number;
+      hit: boolean;
+    }
+  | { type: "unit_died"; unitId: string }
+  | { type: "turn_changed"; currentUnitId: string; turnNumber: number }
+  | { type: "loot_collected"; unitId: string; lootId: string }
+  | { type: "game_over"; victory: boolean };
+
+/** Event broadcast */
+export interface EventsPayload {
+  events: GameEvent[];
+}
+
+// ============================================================================
+// Connection Messages
+// ============================================================================
+
+/** Ping message (keepalive) */
+export type PingPayload = Record<string, never>;
+
+/** Pong response */
+export type PongPayload = Record<string, never>;
+
+/** Error message from server */
+export interface ErrorPayload {
+  /** Error code */
+  code: string;
+  /** Error message */
+  message: string;
+}
+
+// ============================================================================
+// Message Type Constants
+// ============================================================================
+
+/** All message types */
+export const MessageType = {
+  // Authentication
+  AUTH: "auth",
+  AUTH_RESULT: "auth_result",
+
+  // Session management
+  CREATE_GAME: "create_game",
+  GAME_CREATED: "game_created",
+  JOIN_GAME: "join_game",
+  LEAVE_GAME: "leave_game",
+  READY: "ready",
+  LOBBY_STATE: "lobby_state",
+
+  // Game actions
+  ACTION: "action",
+  ACTION_RESULT: "action_result",
+
+  // Chat
+  CHAT: "chat",
+  CHAT_RECEIVED: "chat_received",
+
+  // DM commands
+  DM_COMMAND: "dm_command",
+
+  // State sync
+  FULL_STATE: "full_state",
+  DELTA_STATE: "delta_state",
+  EVENTS: "events",
+  REQUEST_SYNC: "request_sync",
+
+  // Connection
+  PING: "ping",
+  PONG: "pong",
+  ERROR: "error",
+
+  // Player updates
+  PLAYER_JOINED: "player_joined",
+  PLAYER_LEFT: "player_left",
+  PLAYER_DISCONNECTED: "player_disconnected",
+  PLAYER_RECONNECTED: "player_reconnected",
+} as const;
+
+export type MessageTypeValue = (typeof MessageType)[keyof typeof MessageType];
+
+// ============================================================================
+// Error Codes
+// ============================================================================
+
+export const ErrorCode = {
+  // Auth errors
+  AUTH_REQUIRED: "AUTH_REQUIRED",
+  AUTH_FAILED: "AUTH_FAILED",
+  AUTH_EXPIRED: "AUTH_EXPIRED",
+
+  // Session errors
+  SESSION_NOT_FOUND: "SESSION_NOT_FOUND",
+  SESSION_FULL: "SESSION_FULL",
+  ALREADY_IN_SESSION: "ALREADY_IN_SESSION",
+  NOT_IN_SESSION: "NOT_IN_SESSION",
+
+  // Game errors
+  NOT_YOUR_TURN: "NOT_YOUR_TURN",
+  INVALID_ACTION: "INVALID_ACTION",
+  GAME_NOT_STARTED: "GAME_NOT_STARTED",
+  GAME_ALREADY_STARTED: "GAME_ALREADY_STARTED",
+
+  // Permission errors
+  DM_REQUIRED: "DM_REQUIRED",
+  PERMISSION_DENIED: "PERMISSION_DENIED",
+
+  // Rate limiting
+  RATE_LIMITED: "RATE_LIMITED",
+
+  // General
+  INVALID_MESSAGE: "INVALID_MESSAGE",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+} as const;
+
+export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

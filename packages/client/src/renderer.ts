@@ -68,6 +68,7 @@ export class IsometricRenderer {
   private highlightGroup: THREE.Group;
   private lootGroup: THREE.Group;
   private shopGroup: THREE.Group;
+  private effectsGroup: THREE.Group;
 
   private tileMeshes: Map<string, THREE.Mesh> = new Map();
   private unitMeshes: Map<string, THREE.Mesh> = new Map();
@@ -131,12 +132,14 @@ export class IsometricRenderer {
     this.shopGroup = new THREE.Group();
     this.unitGroup = new THREE.Group();
     this.highlightGroup = new THREE.Group();
+    this.effectsGroup = new THREE.Group();
     this.scene.add(this.infiniteFloorGroup);
     this.scene.add(this.tileGroup);
     this.scene.add(this.lootGroup);
     this.scene.add(this.shopGroup);
     this.scene.add(this.unitGroup);
     this.scene.add(this.highlightGroup);
+    this.scene.add(this.effectsGroup);
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -180,7 +183,12 @@ export class IsometricRenderer {
 
     if (intersects.length > 0) {
       const mesh = intersects[0]!.object as THREE.Mesh;
-      const pos = mesh.userData.position as Position;
+      const pos = mesh.userData.position as Position | undefined;
+
+      // Guard against missing position data
+      if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") {
+        return;
+      }
 
       if (!this.hoveredTile || this.hoveredTile.x !== pos.x || this.hoveredTile.y !== pos.y) {
         this.hoveredTile = pos;
@@ -693,11 +701,13 @@ export class IsometricRenderer {
    * Center camera on a position (defaults to origin for infinite maps).
    */
   centerCamera(position: { x: number; y: number } = { x: 0, y: 0 }): void {
-    const centerX = position.x * TILE_SIZE;
-    const centerZ = position.y * TILE_SIZE;
+    // Use the same world position calculation as centerOnPosition
+    const worldPos = this.posToWorld(position);
+    const targetX = worldPos.x + 20;
+    const targetZ = worldPos.z + 20;
 
-    this.camera.position.set(centerX + 20, 20, centerZ + 20);
-    this.camera.lookAt(centerX, 0, centerZ);
+    this.camera.position.set(targetX, 20, targetZ);
+    this.camera.lookAt(worldPos.x, 0, worldPos.z);
   }
 
   /**
@@ -846,6 +856,82 @@ export class IsometricRenderer {
   clearLoot(): void {
     this.lootGroup.clear();
     this.lootMeshes.clear();
+  }
+
+  /**
+   * Play a death animation (puff of smoke) at the given position.
+   * Returns a promise that resolves when the animation is complete.
+   */
+  playDeathAnimation(position: Position): Promise<void> {
+    return new Promise((resolve) => {
+      const worldPos = this.posToWorld(position);
+      const particleCount = 12;
+      const particles: THREE.Mesh[] = [];
+      const animDuration = 600; // ms
+      const startTime = performance.now();
+
+      // Create smoke particles
+      for (let i = 0; i < particleCount; i++) {
+        const size = 0.15 + Math.random() * 0.15;
+        const geometry = new THREE.SphereGeometry(size, 8, 8);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x888888,
+          transparent: true,
+          opacity: 0.8,
+        });
+        const particle = new THREE.Mesh(geometry, material);
+
+        // Start position (at unit center, slightly above ground)
+        particle.position.set(
+          worldPos.x + (Math.random() - 0.5) * 0.3,
+          TILE_HEIGHT + 0.4 + Math.random() * 0.2,
+          worldPos.z + (Math.random() - 0.5) * 0.3
+        );
+
+        // Store velocity for animation
+        particle.userData.vx = (Math.random() - 0.5) * 2;
+        particle.userData.vy = 1 + Math.random() * 1.5;
+        particle.userData.vz = (Math.random() - 0.5) * 2;
+
+        this.effectsGroup.add(particle);
+        particles.push(particle);
+      }
+
+      // Animate particles
+      const animate = () => {
+        const elapsed = performance.now() - startTime;
+        const progress = Math.min(elapsed / animDuration, 1);
+
+        particles.forEach((p) => {
+          const mat = p.material as THREE.MeshBasicMaterial;
+          // Move outward and upward
+          p.position.x += (p.userData.vx as number) * 0.02;
+          p.position.y += (p.userData.vy as number) * 0.02;
+          p.position.z += (p.userData.vz as number) * 0.02;
+          // Slow down vertical velocity
+          p.userData.vy = (p.userData.vy as number) * 0.95;
+          // Fade out
+          mat.opacity = 0.8 * (1 - progress);
+          // Scale up slightly
+          const scale = 1 + progress * 0.5;
+          p.scale.set(scale, scale, scale);
+        });
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          // Clean up particles
+          particles.forEach((p) => {
+            this.effectsGroup.remove(p);
+            p.geometry.dispose();
+            (p.material as THREE.MeshBasicMaterial).dispose();
+          });
+          resolve();
+        }
+      };
+
+      animate();
+    });
   }
 
   /**

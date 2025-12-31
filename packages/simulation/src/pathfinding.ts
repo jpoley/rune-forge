@@ -24,10 +24,16 @@ function manhattanDistance(a: Position, b: Position): number {
 function getNeighbors(pos: Position, _map: GameMap): Position[] {
   const neighbors: Position[] = [];
   const directions = [
+    // Cardinal directions
     { x: 0, y: -1 }, // up
     { x: 0, y: 1 }, // down
     { x: -1, y: 0 }, // left
     { x: 1, y: 0 }, // right
+    // Diagonal directions
+    { x: -1, y: -1 }, // up-left
+    { x: 1, y: -1 }, // up-right
+    { x: -1, y: 1 }, // down-left
+    { x: 1, y: 1 }, // down-right
   ];
 
   for (const dir of directions) {
@@ -41,15 +47,23 @@ function getNeighbors(pos: Position, _map: GameMap): Position[] {
 function isWalkable(
   pos: Position,
   map: GameMap,
-  occupiedPositions: Set<string>
+  blockedPositions: Set<string>,
+  passablePositions: Set<string>,
+  isGoalCheck = false
 ): boolean {
   const tile = map.getTile(pos.x, pos.y);
   if (!tile.walkable) {
     return false;
   }
 
-  // Check if occupied by another unit
-  if (occupiedPositions.has(positionKey(pos))) {
+  // Check if blocked by enemy unit
+  if (blockedPositions.has(positionKey(pos))) {
+    return false;
+  }
+
+  // Check if occupied by friendly unit - can pass through but not stop on
+  // When checking if we can STOP on a tile (isGoalCheck), passable positions are blocked
+  if (isGoalCheck && passablePositions.has(positionKey(pos))) {
     return false;
   }
 
@@ -61,6 +75,11 @@ function isWalkable(
  * Returns the path as an array of positions (including start and goal),
  * or null if no path exists.
  */
+// Helper to check if a unit is on the player's team (player or npc)
+function isPlayerTeam(type: string): boolean {
+  return type === "player" || type === "npc";
+}
+
 export function findPath(
   start: Position,
   goal: Position,
@@ -68,14 +87,28 @@ export function findPath(
   units: ReadonlyArray<Unit>,
   movingUnitId: string
 ): Position[] | null {
-  // Build set of occupied positions (excluding the moving unit and goal)
-  const occupiedPositions = new Set<string>();
+  // Find the moving unit to determine its team
+  const movingUnit = units.find(u => u.id === movingUnitId);
+  const movingIsPlayerTeam = movingUnit ? isPlayerTeam(movingUnit.type) : true;
+
+  // Build sets of blocked and passable positions
+  // Blocked = enemies (cannot pass through)
+  // Passable = friendlies (can pass through but not stop on)
+  const blockedPositions = new Set<string>();
+  const passablePositions = new Set<string>();
+
   for (const unit of units) {
     if (unit.id !== movingUnitId && unit.stats.hp > 0) {
-      // Goal can be occupied if we're pathfinding for attack range check
       const unitKey = positionKey(unit.position);
-      if (unitKey !== positionKey(goal)) {
-        occupiedPositions.add(unitKey);
+      // Goal can be occupied if we're pathfinding for attack range check
+      if (unitKey === positionKey(goal)) continue;
+
+      const unitIsPlayerTeam = isPlayerTeam(unit.type);
+      // Same team = friendly (passable), different team = enemy (blocked)
+      if (unitIsPlayerTeam === movingIsPlayerTeam) {
+        passablePositions.add(unitKey);
+      } else {
+        blockedPositions.add(unitKey);
       }
     }
   }
@@ -99,7 +132,16 @@ export function findPath(
 
   openSet.set(positionKey(start), startNode);
 
+  // Maximum iterations to prevent infinite loops on infinite maps
+  const MAX_ITERATIONS = 10000;
+  let iterations = 0;
+
   while (openSet.size > 0) {
+    // Safety check: abort if taking too long (no path exists or very far)
+    if (++iterations > MAX_ITERATIONS) {
+      return null;
+    }
+
     // Find node with lowest f score
     let current: PathNode | null = null;
     let lowestF = Infinity;
@@ -138,7 +180,7 @@ export function findPath(
       // Goal is always considered walkable for pathfinding purposes
       const isGoal =
         neighborPos.x === goal.x && neighborPos.y === goal.y;
-      if (!isGoal && !isWalkable(neighborPos, map, occupiedPositions)) {
+      if (!isGoal && !isWalkable(neighborPos, map, blockedPositions, passablePositions)) {
         continue;
       }
 
@@ -165,6 +207,7 @@ export function findPath(
 /**
  * Get all reachable positions within a given move range.
  * Returns a map of position -> minimum distance to reach it.
+ * Units can pass through friendly units but not stop on them.
  */
 export function getReachablePositions(
   start: Position,
@@ -174,19 +217,37 @@ export function getReachablePositions(
   movingUnitId: string
 ): Map<string, number> {
   const reachable = new Map<string, number>();
-  const occupiedPositions = new Set<string>();
+
+  // Find the moving unit to determine its team
+  const movingUnit = units.find(u => u.id === movingUnitId);
+  const movingIsPlayerTeam = movingUnit ? isPlayerTeam(movingUnit.type) : true;
+
+  // Build sets of blocked and passable positions
+  const blockedPositions = new Set<string>();
+  const passablePositions = new Set<string>();
 
   for (const unit of units) {
     if (unit.id !== movingUnitId && unit.stats.hp > 0) {
-      occupiedPositions.add(positionKey(unit.position));
+      const unitKey = positionKey(unit.position);
+      const unitIsPlayerTeam = isPlayerTeam(unit.type);
+      // Same team = friendly (passable), different team = enemy (blocked)
+      if (unitIsPlayerTeam === movingIsPlayerTeam) {
+        passablePositions.add(unitKey);
+      } else {
+        blockedPositions.add(unitKey);
+      }
     }
   }
+
+  // Track all positions we can reach (including passing through friendlies)
+  const visited = new Map<string, number>();
 
   // BFS to find all reachable positions
   const queue: Array<{ pos: Position; dist: number }> = [
     { pos: start, dist: 0 },
   ];
-  reachable.set(positionKey(start), 0);
+  visited.set(positionKey(start), 0);
+  reachable.set(positionKey(start), 0); // Can always stay in place
 
   while (queue.length > 0) {
     const { pos, dist } = queue.shift()!;
@@ -195,12 +256,18 @@ export function getReachablePositions(
 
     for (const neighbor of getNeighbors(pos, map)) {
       const key = positionKey(neighbor);
-      if (reachable.has(key)) continue;
+      if (visited.has(key)) continue;
 
-      if (!isWalkable(neighbor, map, occupiedPositions)) continue;
+      // Check if we can walk through this tile (friendlies are passable)
+      if (!isWalkable(neighbor, map, blockedPositions, passablePositions, false)) continue;
 
-      reachable.set(key, dist + 1);
+      visited.set(key, dist + 1);
       queue.push({ pos: neighbor, dist: dist + 1 });
+
+      // Only add to reachable if we can actually STOP here (not on friendlies)
+      if (!passablePositions.has(key)) {
+        reachable.set(key, dist + 1);
+      }
     }
   }
 
