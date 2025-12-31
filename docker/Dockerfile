@@ -57,9 +57,9 @@ FROM oven/bun:1-slim AS production
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 runeforge && \
-    adduser --system --uid 1001 runeforge
+# Create non-root user for security (using groupadd/useradd for Debian slim)
+RUN groupadd --system --gid 1001 runeforge && \
+    useradd --system --uid 1001 --gid runeforge --no-create-home runeforge
 
 # Copy built artifacts
 COPY --from=client-builder /app/packages/client/dist ./client/dist
@@ -72,17 +72,17 @@ RUN mkdir -p /app/data && chown -R runeforge:runeforge /app/data
 USER runeforge
 
 # Environment variables
-ENV PORT=3000
+ENV PORT=41204
 ENV CLIENT_DIR=/app/client/dist
 ENV DB_PATH=/app/data/rune-forge.db
 ENV NODE_ENV=production
 
 # Expose port
-EXPOSE 3000
+EXPOSE 41204
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:41204/api/health || exit 1
 
 # Start the server
 CMD ["bun", "run", "/app/server/dist/index.js"]
