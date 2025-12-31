@@ -3,8 +3,8 @@ FROM node:22-slim AS client-builder
 
 WORKDIR /app
 
-# Enable corepack for pnpm
-RUN corepack enable pnpm
+# Enable corepack for pnpm and install Bun (needed for build scripts)
+RUN corepack enable pnpm && npm install -g bun
 
 # Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
@@ -32,8 +32,8 @@ FROM node:22-slim AS server-builder
 
 WORKDIR /app
 
-# Enable corepack for pnpm
-RUN corepack enable pnpm
+# Enable corepack for pnpm and install Bun (needed for build scripts)
+RUN corepack enable pnpm && npm install -g bun
 
 # Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
