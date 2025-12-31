@@ -1,0 +1,148 @@
+name: Campaign Builder Feedback
+description: Feedback specifically for campaign creation tools and workflows (for Campaign Builders)
+title: "[Campaign]: "
+labels: ["campaign-builder", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Campaign Builder Feedback
+
+        This form is for feedback specifically related to **campaign creation** tools, workflows, and features.
+
+        If you're reporting a bug during gameplay, please use the Bug Report template instead.
+
+        Thank you for helping us build better tools for campaign creators!
+
+  - type: dropdown
+    id: feedback-type
+    attributes:
+      label: Feedback Type
+      description: What kind of feedback are you providing?
+      options:
+        - Feature Request - New campaign creation capability
+        - Improvement - Enhance existing campaign tools
+        - Bug - Something isn't working in campaign creation
+        - Workflow Issue - The process is confusing or inefficient
+        - Content Request - Need new assets, templates, or presets
+    validations:
+      required: true
+
+  - type: dropdown
+    id: campaign-area
+    attributes:
+      label: Campaign Creation Area
+      description: Which part of campaign creation is this about?
+      options:
+        - World Building
+        - Map Creation / Management
+        - NPC / Monster Creation
+        - Encounter Design
+        - Quest / Story Structure
+        - Loot / Treasure Tables
+        - Session Planning
+        - Player Handouts / Notes
+        - Campaign Settings / Rules
+        - Publishing / Sharing Campaigns
+        - Import / Export
+        - Templates / Presets
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe your feedback in detail
+      placeholder: |
+        What are you trying to accomplish?
+        What's the current experience like?
+        What would make it better?
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Your Workflow
+      description: Describe your current campaign creation workflow and how this fits in
+      placeholder: |
+        1. I typically start by...
+        2. Then I create...
+        3. The issue occurs when...
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example / Use Case
+      description: Provide a concrete example of what you're trying to build or accomplish
+      placeholder: |
+        I'm building a campaign where...
+        I need to be able to...
+
+  - type: dropdown
+    id: experience
+    attributes:
+      label: Campaign Building Experience
+      description: How much experience do you have building campaigns?
+      options:
+        - New to campaign building
+        - Some experience (1-5 campaigns)
+        - Experienced (5-15 campaigns)
+        - Veteran (15+ campaigns)
+        - Professional content creator
+    validations:
+      required: true
+
+  - type: dropdown
+    id: game-system
+    attributes:
+      label: Primary Game System
+      description: What game system do you primarily build campaigns for?
+      options:
+        - D&D 5e
+        - D&D 5e (2024)
+        - Pathfinder 2e
+        - Pathfinder 1e
+        - D&D 3.5e
+        - System Agnostic
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: campaign-type
+    attributes:
+      label: Campaign Type
+      description: What type of campaigns do you typically build?
+      options:
+        - Original homebrew content
+        - Adapted published modules
+        - System conversions
+        - One-shots
+        - Long-running campaigns
+        - Multiple types
+    validations:
+      required: true
+
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Other Tools Used
+      description: What other tools do you use for campaign creation? How does Rune Forge compare?
+      placeholder: |
+        I currently use [tool] for this because...
+        Rune Forge could be better if...
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would beta test new campaign creation features
+          required: false
+        - label: I can provide sample campaigns for testing
+          required: false
+        - label: I'm interested in creating templates for other builders
+          required: false

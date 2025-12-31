@@ -1,0 +1,146 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in Rune Forge
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before Submitting
+
+        - [ ] I have searched existing issues to ensure this bug has not been reported
+        - [ ] I can reproduce this issue consistently
+
+        Thank you for helping us improve Rune Forge!
+
+  - type: dropdown
+    id: persona
+    attributes:
+      label: I am a...
+      description: What role do you primarily play?
+      options:
+        - Player
+        - Dungeon Master
+        - Campaign Builder
+        - Developer
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Game Area
+      description: Which area of the game is affected?
+      options:
+        - Game Engine / Gameplay
+        - Game or Party Setup
+        - Campaign Creation
+        - Character Management
+        - Dice / Mechanics
+        - UI / Interface
+        - Performance
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Open the game...
+        2. Navigate to...
+        3. Click on...
+        4. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Game Context
+      description: Any relevant context about your game session, character, or campaign
+      placeholder: |
+        - Campaign type: homebrew/published module
+        - Character level: 5
+        - Party size: 4
+        - Were you in combat? Exploration? etc.
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Mobile Safari
+        - Mobile Chrome
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device Type
+      options:
+        - Desktop
+        - Laptop
+        - Tablet
+        - Mobile Phone
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Recordings
+      description: If applicable, add screenshots or recordings to help explain the problem
+      placeholder: Drag and drop images here or paste links
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Logs
+      description: If you're comfortable, open browser dev tools (F12) and paste any relevant console errors
+      render: shell
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Final Checklist
+      options:
+        - label: I have provided all requested information
+          required: true
+        - label: This issue affects my gameplay significantly
+          required: false

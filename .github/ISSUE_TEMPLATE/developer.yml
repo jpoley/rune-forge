@@ -1,0 +1,145 @@
+name: Developer / Technical Issue
+description: Technical issues, API feedback, or developer experience (for Developers)
+title: "[Dev]: "
+labels: ["developer", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Developer Feedback
+
+        This form is for **developers** working with Rune Forge's API, extending the platform, or contributing to the codebase.
+
+        For gameplay bugs or feature requests, please use the appropriate template.
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What kind of issue are you reporting?
+      options:
+        - API Bug - Endpoint not working as documented
+        - API Feature Request - New endpoint or capability
+        - Documentation Issue - Incorrect or missing developer docs
+        - SDK / Client Library Issue
+        - Performance Issue - Slow responses, rate limiting
+        - Developer Experience - Tooling, debugging, testing
+        - Integration Issue - Third-party service integration
+        - Security Concern - Potential vulnerability (use security policy for critical issues)
+        - Other Technical Issue
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Technical Area
+      description: Which part of the system is affected?
+      options:
+        - REST API
+        - WebSocket / Real-time
+        - Authentication / Authorization
+        - Game State Management
+        - Asset Management
+        - Campaign Data
+        - Character Data
+        - Dice Engine
+        - Plugin System
+        - Build / CI / Deployment
+        - Testing Infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the issue or request in detail
+      placeholder: What's happening? What were you trying to accomplish?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce (for bugs)
+      description: Provide steps, API calls, or code to reproduce the issue
+      placeholder: |
+        1. Make API call to...
+        2. With payload...
+        3. Receive unexpected response...
+      render: shell
+
+  - type: textarea
+    id: code-example
+    attributes:
+      label: Code Example
+      description: Provide relevant code, API requests, or configuration
+      placeholder: |
+        ```typescript
+        // Your code here
+        ```
+
+        ```bash
+        curl -X POST ...
+        ```
+      render: markdown
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: The API should return...
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Instead, the API returned...
+
+  - type: input
+    id: api-version
+    attributes:
+      label: API Version
+      description: Which API version are you using?
+      placeholder: "v1, v2, etc."
+
+  - type: input
+    id: sdk-version
+    attributes:
+      label: SDK / Client Version
+      description: If using an SDK, which version?
+      placeholder: "@rune-forge/sdk@1.2.3"
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Production
+        - Staging
+        - Development / Local
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs / Response
+      description: Paste API responses, error messages, or logs
+      render: json
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a PR to fix this issue
+          required: false
+        - label: I can help test the fix
+          required: false
+        - label: I can help improve documentation for this area
+          required: false

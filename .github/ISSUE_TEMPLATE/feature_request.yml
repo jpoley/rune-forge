@@ -1,0 +1,132 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for Rune Forge
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before Submitting
+
+        > **Note**: "Nice to have" is not a strong use case. Please explain the specific problem this feature would solve for your gameplay experience.
+
+        - [ ] I have searched existing issues for similar feature requests
+        - [ ] This feature would improve the game experience for players, DMs, or campaign builders
+
+  - type: dropdown
+    id: persona
+    attributes:
+      label: I am a...
+      description: What role do you primarily play? (Select your primary perspective for this request)
+      options:
+        - Player
+        - Dungeon Master
+        - Campaign Builder
+        - Developer
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Game Area
+      description: Which area of the game would this feature affect?
+      options:
+        - Game Engine / Gameplay
+        - Game or Party Setup
+        - Campaign Creation
+        - Character Management
+        - Dice / Mechanics
+        - Combat System
+        - Exploration / Maps
+        - Social / Roleplaying Tools
+        - Inventory / Equipment
+        - UI / Interface
+        - Accessibility
+        - Performance
+        - Integration / API
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What pain point does it address?
+      placeholder: |
+        As a [player/DM/campaign builder], I'm frustrated when...
+        Currently there's no way to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like to see
+      placeholder: |
+        I would like Rune Forge to...
+        This could work by...
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Describe specific gameplay scenarios where this feature would be valuable
+      placeholder: |
+        1. During combat, this would help by...
+        2. When setting up a new campaign, this would allow...
+        3. As a DM running a session, this would...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What workarounds have you tried? Are there other tools you use for this?
+      placeholder: |
+        Currently I work around this by...
+        Other VTTs handle this by...
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Who Would Benefit?
+      description: Who would this feature help most?
+      options:
+        - All users equally
+        - Primarily Players
+        - Primarily Dungeon Masters
+        - Primarily Campaign Builders
+        - Primarily Developers/API users
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How critical is this feature for your experience?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve my experience
+        - High - Significantly impacts my sessions
+        - Critical - Blocking me from running games
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to help test this feature
+          required: false
+        - label: I can help write documentation for this feature
+          required: false
+        - label: I am a developer and willing to contribute code
+          required: false
