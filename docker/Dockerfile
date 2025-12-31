@@ -1,15 +1,17 @@
 # Build stage for client
-FROM oven/bun:1 AS client-builder
+FROM node:22-slim AS client-builder
 
 WORKDIR /app
+
+# Enable corepack for pnpm
+RUN corepack enable pnpm
 
 # Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/simulation/package.json ./packages/simulation/
 COPY packages/client/package.json ./packages/client/
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
@@ -26,17 +28,19 @@ WORKDIR /app/packages/client
 RUN pnpm run build
 
 # Build stage for server
-FROM oven/bun:1 AS server-builder
+FROM node:22-slim AS server-builder
 
 WORKDIR /app
+
+# Enable corepack for pnpm
+RUN corepack enable pnpm
 
 # Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/simulation/package.json ./packages/simulation/
 COPY packages/server/package.json ./packages/server/
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
