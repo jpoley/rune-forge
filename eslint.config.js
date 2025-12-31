@@ -17,6 +17,7 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-require-imports": "warn",
       "no-case-declarations": "warn",
+      "prefer-const": "warn",
     },
   }
 );
