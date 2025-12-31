@@ -13,6 +13,7 @@ export interface DbUser {
   id: string;
   display_name: string;
   email: string | null;
+  ip_address: string | null;
   created_at: number;
   last_login_at: number | null;
 }
@@ -24,6 +25,7 @@ export interface UserInput {
   id: string;
   displayName: string;
   email?: string | null;
+  ipAddress?: string | null;
 }
 
 /**
@@ -52,19 +54,20 @@ export class UserRepository {
 
   /**
    * Create or update a user (upsert on login).
-   * Updates display_name, email, and last_login_at on conflict.
+   * Updates display_name, email, ip_address, and last_login_at on conflict.
    */
   upsert(input: UserInput): DbUser {
     const now = Math.floor(Date.now() / 1000);
 
     this.db.run(
-      `INSERT INTO users (id, display_name, email, created_at, last_login_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO users (id, display_name, email, ip_address, created_at, last_login_at)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          display_name = excluded.display_name,
          email = excluded.email,
+         ip_address = excluded.ip_address,
          last_login_at = excluded.last_login_at`,
-      [input.id, input.displayName, input.email ?? null, now, now]
+      [input.id, input.displayName, input.email ?? null, input.ipAddress ?? null, now, now]
     );
 
     return this.findById(input.id)!;

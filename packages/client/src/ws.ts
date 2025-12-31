@@ -357,6 +357,14 @@ export class WSClient {
         this.emit("ready_confirmed", payload);
         break;
 
+      case "game_paused":
+        this.emit("game_paused", payload);
+        break;
+
+      case "game_resumed":
+        this.emit("game_resumed", payload);
+        break;
+
       default:
         // Emit generic event for unknown types
         this.emit(type, payload);
@@ -558,6 +566,10 @@ export class WSClient {
       mapSeed?: number;
       difficulty?: "easy" | "normal" | "hard";
       turnTimeLimit?: number;
+      npcCount?: number;
+      npcClasses?: string[];
+      monsterCount?: number;
+      playerMoveRange?: number;
     } = {}
   ): Promise<{ sessionId: string; joinCode: string }> {
     return this.request("create_game", {
@@ -566,6 +578,10 @@ export class WSClient {
         maxPlayers: config.maxPlayers ?? 4,
         difficulty: config.difficulty ?? "normal",
         turnTimeLimit: config.turnTimeLimit ?? 0,
+        npcCount: config.npcCount ?? 2,
+        monsterCount: config.monsterCount ?? 10,
+        playerMoveRange: config.playerMoveRange ?? 3,
+        ...(config.npcClasses && { npcClasses: config.npcClasses }),
         ...(config.mapSeed && { mapSeed: config.mapSeed }),
       },
     });

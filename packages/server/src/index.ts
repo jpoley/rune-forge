@@ -18,8 +18,8 @@ import {
 import { registerGameHandlers } from "./game/index.js";
 import type { GameState } from "@rune-forge/simulation";
 
-const PORT = Number(process.env.PORT) || 3000;
-const CLIENT_DIR = process.env.CLIENT_DIR || "../client/dist";
+const PORT = Number(process.env.PORT) || 41204;
+const CLIENT_DIR = process.env.CLIENT_DIR || "./packages/client/dist";
 
 // Initialize database (uses .data/rune-forge.db by default)
 const database = initDatabase();
@@ -198,7 +198,7 @@ async function handleApiRequest(req: Request, path: string): Promise<Response> {
 // Static file serving
 async function serveStaticFile(path: string): Promise<Response> {
   // Default to index.html for SPA routing
-  let filePath = path === "/" ? "/index.html" : path;
+  const filePath = path === "/" ? "/index.html" : path;
 
   try {
     const file = Bun.file(`${CLIENT_DIR}${filePath}`);
@@ -290,8 +290,20 @@ const server = Bun.serve<WSConnectionData>({
 
     let response: Response;
 
+    // Get client IP from Bun's server and add to request headers
+    // This allows auth routes to capture the real client IP
+    const socketAddress = server.requestIP(req);
+    const requestWithIp = socketAddress?.address
+      ? new Request(req, {
+          headers: new Headers([
+            ...req.headers.entries(),
+            ["X-Real-IP", socketAddress.address],
+          ]),
+        })
+      : req;
+
     // Handle auth routes first (login, callback, logout, etc.)
-    const authResponse = await handleAuthRoutes(req);
+    const authResponse = await handleAuthRoutes(requestWithIp);
     if (authResponse) {
       response = authResponse;
     }

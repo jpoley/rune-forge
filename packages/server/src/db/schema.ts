@@ -17,10 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,                    -- Pocket ID subject (sub claim)
   display_name TEXT NOT NULL,
   email TEXT,
+  ip_address TEXT,                        -- IP address from last login
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-  last_login_at INTEGER,
-
-  UNIQUE(email)
+  last_login_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

@@ -38,7 +38,13 @@ export {
 export {
   generateMap,
   generateUnits,
+  generateNPCs,
   generateGameState,
+  getNPCClass,
+  getNPCClassNames,
+  NPC_CLASSES,
+  type NPCClass,
+  type NPCGeneratorOptions,
   type MapGeneratorOptions,
   type UnitGeneratorOptions,
   type GameGeneratorOptions,

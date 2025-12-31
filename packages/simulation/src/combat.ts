@@ -35,6 +35,31 @@ import { getDistance, hasLineOfSight, isAdjacent } from "./line-of-sight.js";
 import { generateLootDrop, getEquippedWeaponDamage, getEquippedWeaponRange, collectLoot, canCollectLoot } from "./loot.js";
 
 // =============================================================================
+// Alliance Helpers
+// =============================================================================
+
+/**
+ * Check if two units are allies (on the same team).
+ * Players and NPCs are allies. Monsters are enemies of players/NPCs.
+ */
+function areAllies(unit1: Unit, unit2: Unit): boolean {
+  // Players and NPCs are allies
+  if ((unit1.type === "player" || unit1.type === "npc") &&
+      (unit2.type === "player" || unit2.type === "npc")) {
+    return true;
+  }
+  // Same type (all monsters) are allies
+  return unit1.type === unit2.type;
+}
+
+/**
+ * Check if a unit is on the player's team (player or NPC).
+ */
+function isPlayerTeam(unit: Unit): boolean {
+  return unit.type === "player" || unit.type === "npc";
+}
+
+// =============================================================================
 // State Management (Immutable Updates)
 // =============================================================================
 
@@ -334,7 +359,7 @@ function validateAttackAction(
     return { valid: false, reason: "Target is already defeated" };
   }
 
-  if (target.type === unit.type) {
+  if (areAllies(unit, target)) {
     return { valid: false, reason: "Cannot attack friendly units" };
   }
 
@@ -497,7 +522,7 @@ function executeAttackAction(
   };
   events.push(damageEvent);
 
-  let newUnits = updateUnitStats(state.units, action.targetId, { hp: newHp });
+  const newUnits = updateUnitStats(state.units, action.targetId, { hp: newHp });
 
   // Track loot drops to add
   let newLootDrops = [...state.lootDrops];
@@ -627,17 +652,20 @@ function executeCollectLoot(
 // =============================================================================
 
 function checkCombatEnd(state: GameState): "victory" | "defeat" | null {
-  const playerAlive = state.units.some(
-    u => u.type === "player" && u.stats.hp > 0
+  // Party team (players + NPCs) must have at least one member alive
+  const partyAlive = state.units.some(
+    u => isPlayerTeam(u) && u.stats.hp > 0
   );
   const monstersAlive = state.units.some(
     u => u.type === "monster" && u.stats.hp > 0
   );
 
-  if (!playerAlive) {
+  // Defeat if entire party is wiped
+  if (!partyAlive) {
     return "defeat";
   }
 
+  // Victory if all monsters are defeated
   if (!monstersAlive) {
     return "victory";
   }
@@ -729,7 +757,7 @@ export function getValidAttackTargets(state: GameState): Unit[] {
 
   return units.filter(target => {
     if (target.id === unit.id) return false;
-    if (target.type === unit.type) return false;
+    if (areAllies(unit, target)) return false;
     if (target.stats.hp <= 0) return false;
 
     const distance = getDistance(unit.position, target.position);

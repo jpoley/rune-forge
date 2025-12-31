@@ -138,7 +138,7 @@ export class SaveDatabase {
    * Add migration logic here as the save format evolves.
    */
   private migrateGameState(gameState: GameState, fromVersion: number): GameState {
-    let migrated = gameState;
+    const migrated = gameState;
 
     // Example migration pattern:
     // if (fromVersion < 2) {

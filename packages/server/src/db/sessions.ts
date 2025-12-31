@@ -21,7 +21,13 @@ export interface SessionConfig {
   difficulty: "easy" | "normal" | "hard";
   turnTimeLimit: number;
   monsterCount: number;
+  /** Number of NPC companions to add (0-7) */
+  npcCount: number;
+  /** Specific NPC classes to use (e.g., ["warrior", "archer"]). If set, npcCount is ignored. */
+  npcClasses?: string[];
   allowLateJoin: boolean;
+  /** Movement range for player units (default: 3) */
+  playerMoveRange: number;
 }
 
 /**
@@ -209,12 +215,14 @@ export class SessionRepository {
 
     // Merge with defaults
     const fullConfig: SessionConfig = {
-      maxPlayers: config.maxPlayers ?? 4,
+      maxPlayers: config.maxPlayers ?? 8,
       mapSeed: config.mapSeed ?? Math.floor(Math.random() * 1000000),
       difficulty: config.difficulty ?? "normal",
       turnTimeLimit: config.turnTimeLimit ?? 0,
-      monsterCount: config.monsterCount ?? 3,
+      monsterCount: config.monsterCount ?? 10,
+      npcCount: config.npcCount ?? 2, // Default 2 NPC companions
       allowLateJoin: config.allowLateJoin ?? false,
+      playerMoveRange: config.playerMoveRange ?? 3, // Default 3 tiles
     };
 
     this.db.run(

@@ -131,8 +131,15 @@ export class AuthClient {
   }
 
   /**
+   * Check if auth is enabled on the server.
+   */
+  isAuthEnabled(): boolean {
+    return this.status?.authEnabled ?? true;
+  }
+
+  /**
    * Initiate login flow.
-   * Redirects to Pocket ID login page.
+   * Redirects to Pocket ID login page (or dev login if auth disabled).
    */
   login(redirectUri?: string): void {
     let loginUrl = `${AUTH_API_BASE}/login`;
@@ -142,6 +149,19 @@ export class AuthClient {
     }
 
     window.location.href = loginUrl;
+  }
+
+  /**
+   * Login with a display name (dev mode only).
+   * Uses the dev-login endpoint when auth is disabled.
+   */
+  loginWithName(name: string, redirectUri?: string): void {
+    const params = new URLSearchParams();
+    params.set("name", name);
+    if (redirectUri) {
+      params.set("redirect_uri", redirectUri);
+    }
+    window.location.href = `${AUTH_API_BASE}/dev-login?${params.toString()}`;
   }
 
   /**

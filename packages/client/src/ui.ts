@@ -48,7 +48,6 @@ export class GameUI {
   private pauseOverlay: HTMLElement;
   private settingsPanel: HTMLElement;
   private inventoryPanel: HTMLElement;
-  private dmPanel: HTMLElement;
   private shopPanel: HTMLElement;
 
   // Current gold for shop display
@@ -83,7 +82,6 @@ export class GameUI {
     this.pauseOverlay = document.getElementById("pause-overlay")!;
     this.settingsPanel = document.getElementById("settings-panel")!;
     this.inventoryPanel = document.getElementById("inventory-panel")!;
-    this.dmPanel = document.getElementById("dm-panel")!;
     this.shopPanel = document.getElementById("shop-panel")!;
 
     this.setupEventListeners();
@@ -133,10 +131,6 @@ export class GameUI {
 
     document.getElementById("btn-resume")?.addEventListener("click", () => {
       this.onPauseGame?.();
-    });
-
-    document.getElementById("btn-dm")?.addEventListener("click", () => {
-      this.toggleDMPanel();
     });
 
     document.getElementById("btn-shop")?.addEventListener("click", () => {
@@ -359,7 +353,6 @@ export class GameUI {
    * Toggle the settings panel visibility.
    */
   toggleSettingsPanel(): void {
-    this.hideDMPanel();
     this.hideShopPanel();
     if (this.settingsPanel.style.display === "block") {
       this.hideSettingsPanel();
@@ -383,32 +376,10 @@ export class GameUI {
   }
 
   /**
-   * Toggle the DM panel visibility.
-   */
-  toggleDMPanel(): void {
-    this.hideSettingsPanel();
-    this.hideShopPanel();
-    if (this.dmPanel.style.display === "block") {
-      this.hideDMPanel();
-    } else {
-      this.showDMPanel();
-    }
-  }
-
-  showDMPanel(): void {
-    this.dmPanel.style.display = "block";
-  }
-
-  hideDMPanel(): void {
-    this.dmPanel.style.display = "none";
-  }
-
-  /**
    * Toggle the shop panel visibility.
    */
   toggleShopPanel(): void {
     this.hideSettingsPanel();
-    this.hideDMPanel();
     if (this.shopPanel.style.display === "block") {
       this.hideShopPanel();
     } else {
@@ -834,7 +805,7 @@ export class GameUI {
    */
   addLogEntry(
     message: string,
-    type: "damage" | "move" | "turn" | "victory" | "defeat" = "turn"
+    type: "damage" | "move" | "turn" | "victory" | "defeat" | "system" = "turn"
   ): void {
     const entry = document.createElement("div");
     entry.className = `log-entry ${type}`;

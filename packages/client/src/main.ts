@@ -81,11 +81,14 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
     onLogin: () => {
       controller.login();
     },
+    onLoginWithName: (name) => {
+      controller.loginWithName(name);
+    },
     onLogout: () => {
       controller.logout();
     },
-    onCreateGame: (characterId) => {
-      controller.createGame(characterId).catch(console.error);
+    onCreateGame: (characterId, config) => {
+      controller.createGame(characterId, config).catch(console.error);
     },
     onJoinGame: (joinCode, characterId) => {
       controller.joinGame(joinCode, characterId).catch(console.error);
@@ -98,6 +101,15 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
     },
     onStartGame: () => {
       controller.startGame().catch(console.error);
+    },
+    onNavigateToPartySetup: () => {
+      controller.navigateToPartySetup();
+    },
+    onBackToMainMenu: () => {
+      controller.backToMainMenu();
+    },
+    isAuthEnabled: () => {
+      return controller.isAuthEnabled();
     },
   };
 

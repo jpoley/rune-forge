@@ -56,6 +56,9 @@ export class GameController {
   // Shop position for proximity check
   private shopPosition: Position | null = null;
 
+  // Track pending death animations by position (key: "x,y")
+  private pendingDeathAnimations: Map<string, Promise<void>> = new Map();
+
   constructor(container: HTMLElement) {
     this.renderer = new IsometricRenderer(container);
     this.ui = new GameUI();
@@ -731,24 +734,17 @@ export class GameController {
         this.renderer.highlightTiles(this.validMoveTargets, "move");
       }
 
-      // Auto-end turn after attack OR when movement is exhausted
+      // Auto-end turn after player moves or attacks
       const currentUnit = this.getCurrentUnit();
-      const turnState = this.gameState.combat.turnState;
       if (
         currentUnit?.type === "player" &&
-        turnState &&
         action.type !== "end_turn" // Don't double-end
       ) {
-        // End turn immediately after attacking
-        if (action.type === "attack") {
-          this.ui.addLogEntry("Turn complete - attack finished", "turn");
-          this.endTurn();
-          return;
-        }
-        // End turn when movement is exhausted
-        if (turnState.movementRemaining <= 0) {
-          this.ui.addLogEntry("Turn complete - no movement remaining", "turn");
-          this.endTurn();
+        if (action.type === "attack" || action.type === "move") {
+          // Brief delay so the user can see what happened
+          setTimeout(() => {
+            this.endTurn();
+          }, 100);
           return;
         }
       }
@@ -846,6 +842,14 @@ export class GameController {
         const unit = this.gameState?.units.find(u => u.id === event.unitId);
         if (unit) {
           this.ui.addLogEntry(`${unit.name} is defeated!`, "damage");
+          // Play death animation at unit's position
+          const posKey = `${unit.position.x},${unit.position.y}`;
+          const animPromise = this.renderer.playDeathAnimation(unit.position);
+          this.pendingDeathAnimations.set(posKey, animPromise);
+          // Clean up the promise when done
+          animPromise.then(() => {
+            this.pendingDeathAnimations.delete(posKey);
+          });
         }
         break;
       }
@@ -862,10 +866,24 @@ export class GameController {
         this.ui.hideActionBar();
         break;
 
-      case "loot_dropped":
-        this.ui.addLogEntry("💰 Loot dropped!", "turn");
-        this.renderer.addLootBag(event.lootDrop);
+      case "loot_dropped": {
+        const lootPos = event.lootDrop.position;
+        const posKey = `${lootPos.x},${lootPos.y}`;
+        const pendingAnim = this.pendingDeathAnimations.get(posKey);
+
+        // Wait for death animation to complete before showing loot
+        const showLoot = () => {
+          this.ui.addLogEntry("💰 Loot dropped!", "turn");
+          this.renderer.addLootBag(event.lootDrop);
+        };
+
+        if (pendingAnim) {
+          pendingAnim.then(showLoot);
+        } else {
+          showLoot();
+        }
         break;
+      }
 
       case "loot_collected": {
         this.ui.addLogEntry(`📦 Collected loot!`, "victory");
