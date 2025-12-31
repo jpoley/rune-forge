@@ -20,11 +20,15 @@ export default defineConfig({
     },
   },
   server: {
-    port: 41204,
+    port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        target: "http://localhost:41204",
         changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://localhost:41204",
+        ws: true,
       },
     },
   },

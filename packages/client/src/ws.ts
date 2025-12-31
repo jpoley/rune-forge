@@ -125,13 +125,14 @@ export class WSClient {
 
   /**
    * Connect to the WebSocket server.
+   * Token is optional - server can authenticate from HttpOnly cookie during upgrade.
    */
-  connect(sessionToken: string): void {
+  connect(sessionToken?: string): void {
     if (this.ws) {
       this.disconnect();
     }
 
-    this.sessionToken = sessionToken;
+    this.sessionToken = sessionToken ?? "";
     this.status = "connecting";
     this.emit("status_change", this.status);
 
@@ -629,6 +630,29 @@ export class WSClient {
    */
   sendDMCommand(command: unknown): Promise<{ success: boolean }> {
     return this.request("dm_command", { command });
+  }
+
+  // ===========================================================================
+  // Character Management
+  // ===========================================================================
+
+  /**
+   * List user's characters.
+   */
+  listCharacters(): Promise<{
+    characters: Array<{ id: string; name: string; class: string; level: number }>;
+  }> {
+    return this.request("list_characters", {});
+  }
+
+  /**
+   * Create a new character.
+   */
+  createCharacter(
+    name: string,
+    characterClass: "warrior" | "ranger" | "mage" | "rogue"
+  ): Promise<{ id: string; name: string; class: string; level: number }> {
+    return this.request("create_character", { name, class: characterClass });
   }
 }
 

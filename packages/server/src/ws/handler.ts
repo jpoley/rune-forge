@@ -191,11 +191,15 @@ function checkRateLimit(
 export function handleOpen(ws: TypedWebSocket): void {
   const connectionId = randomUUID();
 
+  // Preserve user if already authenticated from cookie during upgrade
+  const existingUser = ws.data.user;
+  const existingSessionId = ws.data.sessionId;
+
   ws.data = {
     id: connectionId,
-    user: null,
-    authDeadline: Date.now() + AUTH_TIMEOUT_MS,
-    sessionId: null,
+    user: existingUser, // Preserve user from upgrade
+    authDeadline: existingUser ? 0 : Date.now() + AUTH_TIMEOUT_MS,
+    sessionId: existingSessionId,
     lastActivity: Date.now(),
     seq: 0,
     status: "connected",
@@ -203,16 +207,29 @@ export function handleOpen(ws: TypedWebSocket): void {
 
   connections.set(connectionId, ws);
 
-  console.log(`[ws] Connection opened: ${connectionId}`);
+  // If already authenticated from cookie, send auth result immediately
+  if (existingUser) {
+    userConnections.set(existingUser.sub, connectionId);
+    console.log(`[ws] Connection opened: ${connectionId} (user: ${existingUser.sub} from cookie)`);
 
-  // Set auth timeout
-  setTimeout(() => {
-    if (ws.data.user === null && connections.has(connectionId)) {
-      console.log(`[ws] Auth timeout for ${connectionId}`);
-      sendError(ws, "AUTH_REQUIRED", "Authentication timeout");
-      ws.close(4001, "Authentication timeout");
-    }
-  }, AUTH_TIMEOUT_MS);
+    // Send auth result to client
+    sendMessage(ws, "auth_result", {
+      userId: existingUser.sub,
+      name: existingUser.name,
+      reconnectedSessionId: null,
+    });
+  } else {
+    console.log(`[ws] Connection opened: ${connectionId}`);
+
+    // Set auth timeout only if not authenticated
+    setTimeout(() => {
+      if (ws.data.user === null && connections.has(connectionId)) {
+        console.log(`[ws] Auth timeout for ${connectionId}`);
+        sendError(ws, "AUTH_REQUIRED", "Authentication timeout");
+        ws.close(4001, "Authentication timeout");
+      }
+    }, AUTH_TIMEOUT_MS);
+  }
 }
 
 /**

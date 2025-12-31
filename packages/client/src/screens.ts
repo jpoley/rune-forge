@@ -19,15 +19,27 @@ interface ScreenHandler {
   update?(state: MultiplayerState): void;
 }
 
+/** Character info */
+export interface CharacterInfo {
+  id: string;
+  name: string;
+  class: string;
+  level: number;
+}
+
 /** Screen manager callbacks */
 export interface ScreenManagerCallbacks {
   onLogin: () => void;
+  onDevLogin: (name: string) => void;
   onLogout: () => void;
   onCreateGame: (characterId: string) => void;
   onJoinGame: (joinCode: string, characterId: string) => void;
   onLeaveGame: () => void;
   onSetReady: (ready: boolean) => void;
   onStartGame: () => void;
+  // Character management
+  onFetchCharacters: () => Promise<CharacterInfo[]>;
+  onCreateCharacter: (name: string, characterClass: string) => Promise<CharacterInfo>;
 }
 
 // =============================================================================
@@ -45,6 +57,9 @@ const ELEMENTS = {
   // Login screen
   loginBtn: "btn-login",
   loginStatus: "login-status",
+  devLoginSection: "dev-login-section",
+  devLoginNameInput: "dev-login-name",
+  devLoginBtn: "btn-dev-login",
 
   // Main menu
   userInfo: "user-info",
@@ -64,6 +79,15 @@ const ELEMENTS = {
 
   // Loading screen
   loadingMessage: "loading-message",
+
+  // Character modal
+  characterModal: "character-modal",
+  characterList: "character-list",
+  newCharacterSection: "new-character-section",
+  newCharacterName: "new-character-name",
+  newCharacterClass: "new-character-class",
+  createCharacterBtn: "btn-create-character",
+  cancelCharacterBtn: "btn-cancel-character",
 } as const;
 
 // =============================================================================
@@ -105,6 +129,12 @@ export class ScreenManager {
   private currentScreen: MultiplayerScreen | null = null;
   private handlers: Record<MultiplayerScreen, ScreenHandler>;
   private callbacks: ScreenManagerCallbacks;
+
+  /** Pending action when selecting character */
+  private pendingAction: { type: "create" | "join"; joinCode?: string } | null = null;
+
+  /** User's characters */
+  private characters: CharacterInfo[] = [];
 
   constructor(callbacks: ScreenManagerCallbacks) {
     this.callbacks = callbacks;
@@ -203,6 +233,98 @@ export class ScreenManager {
     this.createMainMenuScreen();
     this.createLobbyScreen();
     this.createLoadingScreen();
+    this.createCharacterModal();
+  }
+
+  /**
+   * Create character selection modal.
+   */
+  private createCharacterModal(): void {
+    if (document.getElementById(ELEMENTS.characterModal)) return;
+
+    const modal = createElement("div", {
+      id: ELEMENTS.characterModal,
+      className: "modal",
+    });
+    modal.style.display = "none";
+
+    const content = createElement("div", { className: "modal-content" });
+
+    const title = createElement("h2", { textContent: "Select Character" });
+
+    // Character list
+    const charList = createElement("div", {
+      id: ELEMENTS.characterList,
+      className: "character-list",
+    });
+
+    // New character section
+    const newSection = createElement("div", {
+      id: ELEMENTS.newCharacterSection,
+      className: "new-character-section",
+    });
+
+    const divider = createElement("div", {
+      className: "form-divider",
+      textContent: "— or create new —",
+    });
+
+    const nameGroup = createElement("div", { className: "form-group" });
+    const nameLabel = createElement("label", { textContent: "Character Name" });
+    const nameInput = createElement("input", {
+      id: ELEMENTS.newCharacterName,
+      className: "form-input",
+      attributes: { type: "text", placeholder: "Enter name" },
+    });
+    nameGroup.appendChild(nameLabel);
+    nameGroup.appendChild(nameInput);
+
+    const classGroup = createElement("div", { className: "form-group" });
+    const classLabel = createElement("label", { textContent: "Class" });
+    const classSelect = createElement("select", {
+      id: ELEMENTS.newCharacterClass,
+      className: "form-select",
+    });
+    const classes = [
+      { value: "warrior", label: "Warrior - High HP & Defense" },
+      { value: "ranger", label: "Ranger - Ranged Attacks" },
+      { value: "mage", label: "Mage - High Damage" },
+      { value: "rogue", label: "Rogue - Fast & Agile" },
+    ];
+    for (const cls of classes) {
+      const option = document.createElement("option");
+      option.value = cls.value;
+      option.textContent = cls.label;
+      classSelect.appendChild(option);
+    }
+    classGroup.appendChild(classLabel);
+    classGroup.appendChild(classSelect);
+
+    newSection.appendChild(divider);
+    newSection.appendChild(nameGroup);
+    newSection.appendChild(classGroup);
+
+    // Buttons
+    const buttons = createElement("div", { className: "modal-buttons" });
+    const createBtn = createElement("button", {
+      id: ELEMENTS.createCharacterBtn,
+      className: "primary-btn",
+      textContent: "Create & Continue",
+    });
+    const cancelBtn = createElement("button", {
+      id: ELEMENTS.cancelCharacterBtn,
+      className: "text-btn",
+      textContent: "Cancel",
+    });
+    buttons.appendChild(createBtn);
+    buttons.appendChild(cancelBtn);
+
+    content.appendChild(title);
+    content.appendChild(charList);
+    content.appendChild(newSection);
+    content.appendChild(buttons);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
   }
 
   private createLoginScreen(): void {
@@ -231,10 +353,38 @@ export class ScreenManager {
       textContent: "Login with Pocket ID",
     });
 
+    // Dev login section (for development without OIDC)
+    const devSection = createElement("div", {
+      id: ELEMENTS.devLoginSection,
+      className: "dev-login-section",
+    });
+    const devDivider = createElement("div", {
+      className: "divider",
+      textContent: "— or login for development —",
+    });
+    const devInput = createElement("input", {
+      id: ELEMENTS.devLoginNameInput,
+      className: "dev-login-input",
+      attributes: {
+        type: "text",
+        placeholder: "Enter your name",
+        maxlength: "30",
+      },
+    });
+    const devBtn = createElement("button", {
+      id: ELEMENTS.devLoginBtn,
+      className: "secondary-btn",
+      textContent: "Dev Login",
+    });
+    devSection.appendChild(devDivider);
+    devSection.appendChild(devInput);
+    devSection.appendChild(devBtn);
+
     content.appendChild(title);
     content.appendChild(subtitle);
     content.appendChild(status);
     content.appendChild(loginBtn);
+    content.appendChild(devSection);
     screen.appendChild(content);
     document.body.appendChild(screen);
   }
@@ -411,9 +561,28 @@ export class ScreenManager {
    * Setup event listeners for all screens.
    */
   private setupEventListeners(): void {
-    // Login button
+    // Login button (Pocket ID)
     document.getElementById(ELEMENTS.loginBtn)?.addEventListener("click", () => {
       this.callbacks.onLogin();
+    });
+
+    // Dev login button
+    document.getElementById(ELEMENTS.devLoginBtn)?.addEventListener("click", () => {
+      const input = document.getElementById(ELEMENTS.devLoginNameInput) as HTMLInputElement;
+      const name = input?.value?.trim();
+      if (name) {
+        this.callbacks.onDevLogin(name);
+      } else {
+        // Default name if empty
+        this.callbacks.onDevLogin("Player");
+      }
+    });
+
+    // Dev login input - Enter key
+    document.getElementById(ELEMENTS.devLoginNameInput)?.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        document.getElementById(ELEMENTS.devLoginBtn)?.click();
+      }
     });
 
     // Logout button
@@ -421,20 +590,47 @@ export class ScreenManager {
       this.callbacks.onLogout();
     });
 
-    // Create game button
+    // Create game button - opens character selection modal
     document.getElementById(ELEMENTS.createGameBtn)?.addEventListener("click", () => {
-      // For now, use a default character - in a full implementation,
-      // this would open a character selection modal
-      this.callbacks.onCreateGame("default");
+      this.pendingAction = { type: "create" };
+      this.showCharacterModal();
     });
 
-    // Join game button
+    // Join game button - opens character selection modal
     document.getElementById(ELEMENTS.joinGameBtn)?.addEventListener("click", () => {
       const input = document.getElementById(ELEMENTS.joinCodeInput) as HTMLInputElement;
       const joinCode = input?.value?.trim().toUpperCase();
       if (joinCode && joinCode.length === 6) {
-        this.callbacks.onJoinGame(joinCode, "default");
+        this.pendingAction = { type: "join", joinCode };
+        this.showCharacterModal();
       }
+    });
+
+    // Character modal - create character button
+    document.getElementById(ELEMENTS.createCharacterBtn)?.addEventListener("click", async () => {
+      const nameInput = document.getElementById(ELEMENTS.newCharacterName) as HTMLInputElement;
+      const classSelect = document.getElementById(ELEMENTS.newCharacterClass) as HTMLSelectElement;
+      const name = nameInput?.value?.trim();
+      const characterClass = classSelect?.value;
+
+      if (!name) {
+        alert("Please enter a character name");
+        return;
+      }
+
+      try {
+        const character = await this.callbacks.onCreateCharacter(name, characterClass);
+        this.characters.push(character);
+        this.selectCharacterAndProceed(character.id);
+      } catch (error) {
+        console.error("Failed to create character:", error);
+        alert("Failed to create character");
+      }
+    });
+
+    // Character modal - cancel button
+    document.getElementById(ELEMENTS.cancelCharacterBtn)?.addEventListener("click", () => {
+      this.hideCharacterModal();
     });
 
     // Ready button
@@ -486,6 +682,114 @@ export class ScreenManager {
     const info = statusMap[status];
     element.textContent = info.text;
     element.className = `connection-status ${info.class}`;
+  }
+
+  // ===========================================================================
+  // Character Modal
+  // ===========================================================================
+
+  /**
+   * Show the character selection modal.
+   */
+  private async showCharacterModal(): Promise<void> {
+    const modal = document.getElementById(ELEMENTS.characterModal);
+    if (!modal) return;
+
+    // Fetch characters
+    try {
+      this.characters = await this.callbacks.onFetchCharacters();
+    } catch (error) {
+      console.error("Failed to fetch characters:", error);
+      this.characters = [];
+    }
+
+    // Populate the character list
+    this.renderCharacterList();
+
+    // Clear the new character form
+    const nameInput = document.getElementById(ELEMENTS.newCharacterName) as HTMLInputElement;
+    const classSelect = document.getElementById(ELEMENTS.newCharacterClass) as HTMLSelectElement;
+    if (nameInput) nameInput.value = "";
+    if (classSelect) classSelect.selectedIndex = 0;
+
+    // Show modal
+    modal.style.display = "flex";
+  }
+
+  /**
+   * Hide the character selection modal.
+   */
+  private hideCharacterModal(): void {
+    const modal = document.getElementById(ELEMENTS.characterModal);
+    if (modal) {
+      modal.style.display = "none";
+    }
+    this.pendingAction = null;
+  }
+
+  /**
+   * Render the character list in the modal.
+   */
+  private renderCharacterList(): void {
+    const container = document.getElementById(ELEMENTS.characterList);
+    if (!container) return;
+
+    clearElement(container);
+
+    if (this.characters.length === 0) {
+      const emptyMsg = createElement("p", {
+        className: "empty-message",
+        textContent: "No characters yet. Create one below!",
+      });
+      container.appendChild(emptyMsg);
+      return;
+    }
+
+    for (const char of this.characters) {
+      const charEl = createElement("div", {
+        className: "character-item",
+      });
+      charEl.dataset.characterId = char.id;
+
+      const info = createElement("div", { className: "character-info" });
+      const name = createElement("span", {
+        className: "character-name",
+        textContent: char.name,
+      });
+      const details = createElement("span", {
+        className: "character-details",
+        textContent: `Level ${char.level} ${char.class.charAt(0).toUpperCase() + char.class.slice(1)}`,
+      });
+      info.appendChild(name);
+      info.appendChild(details);
+
+      const selectBtn = createElement("button", {
+        className: "select-btn",
+        textContent: "Select",
+      });
+      selectBtn.addEventListener("click", () => {
+        this.selectCharacterAndProceed(char.id);
+      });
+
+      charEl.appendChild(info);
+      charEl.appendChild(selectBtn);
+      container.appendChild(charEl);
+    }
+  }
+
+  /**
+   * Select a character and proceed with the pending action.
+   */
+  private selectCharacterAndProceed(characterId: string): void {
+    if (!this.pendingAction) return;
+
+    if (this.pendingAction.type === "create") {
+      this.callbacks.onCreateGame(characterId);
+    } else if (this.pendingAction.type === "join" && this.pendingAction.joinCode) {
+      this.callbacks.onJoinGame(this.pendingAction.joinCode, characterId);
+    }
+
+    this.hideCharacterModal();
   }
 
   // ===========================================================================

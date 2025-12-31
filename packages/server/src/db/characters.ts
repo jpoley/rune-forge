@@ -243,7 +243,7 @@ export class CharacterRepository {
 
     this.db.run(
       `UPDATE characters SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`,
-      values
+      values as (string | number | null | boolean)[]
     );
 
     return this.findById(id);
@@ -279,6 +279,17 @@ export class CharacterRepository {
     this.db.run(
       "UPDATE characters SET inventory = ?, updated_at = ? WHERE id = ?",
       [JSON.stringify(inventory), now, id]
+    );
+  }
+
+  /**
+   * Update XP and level (for DM commands).
+   */
+  updateProgression(id: string, data: { xp: number; level: number }): void {
+    const now = Math.floor(Date.now() / 1000);
+    this.db.run(
+      "UPDATE characters SET xp = ?, level = ?, updated_at = ? WHERE id = ?",
+      [data.xp, data.level, now, id]
     );
   }
 

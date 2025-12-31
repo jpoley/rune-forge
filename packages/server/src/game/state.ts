@@ -140,9 +140,9 @@ export function createDelta(
     changes.push({ path: "combat", value: newState.combat });
   }
 
-  // Compare loot
-  if (JSON.stringify(oldState.loot) !== JSON.stringify(newState.loot)) {
-    changes.push({ path: "loot", value: newState.loot });
+  // Compare loot drops
+  if (JSON.stringify(oldState.lootDrops) !== JSON.stringify(newState.lootDrops)) {
+    changes.push({ path: "lootDrops", value: newState.lootDrops });
   }
 
   // Compare inventory

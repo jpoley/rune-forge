@@ -5,6 +5,18 @@ set -e
 
 echo "🎮 Starting Rune Forge development environment..."
 
+# Kill any existing processes on our ports
+SERVER_PORT=${PORT:-41204}
+CLIENT_PORT=5173
+
+for port in $SERVER_PORT $CLIENT_PORT; do
+  if lsof -ti:$port >/dev/null 2>&1; then
+    echo "🧹 Cleaning up existing process on port $port..."
+    lsof -ti:$port | xargs kill -9 2>/dev/null || true
+  fi
+done
+sleep 1
+
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then
   echo "📦 Installing dependencies..."
@@ -17,7 +29,7 @@ pnpm run build:simulation
 
 # Start both server and client in parallel
 echo "🚀 Starting development servers..."
-echo "   Server: http://localhost:3000"
+echo "   Server: http://localhost:41204"
 echo "   Client: http://localhost:5173 (with proxy to server)"
 
 # Run both in parallel

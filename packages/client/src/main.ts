@@ -81,6 +81,9 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
     onLogin: () => {
       controller.login();
     },
+    onDevLogin: (name) => {
+      controller.devLogin(name);
+    },
     onLogout: () => {
       controller.logout();
     },
@@ -98,6 +101,13 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
     },
     onStartGame: () => {
       controller.startGame().catch(console.error);
+    },
+    onFetchCharacters: async () => {
+      const result = await controller.listCharacters();
+      return result.characters;
+    },
+    onCreateCharacter: async (name, characterClass) => {
+      return controller.createCharacter(name, characterClass);
     },
   };
 

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@rune-forge/shared": "workspace:*",
     "@rune-forge/simulation": "workspace:*"
   },
   "devDependencies": {

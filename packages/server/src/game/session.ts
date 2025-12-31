@@ -347,14 +347,15 @@ export function getLobbyState(sessionId: string): {
   joinCode: string;
   config: SessionConfig;
   players: Array<{
-    userId: string;
+    id: string;
+    name: string;
     characterName: string;
     characterClass: string;
     ready: boolean;
     isDM: boolean;
     connected: boolean;
   }>;
-  status: string;
+  state: string;
 } | null {
   const db = getDb();
   const session = getSession(sessionId);
@@ -364,8 +365,10 @@ export function getLobbyState(sessionId: string): {
   const dbPlayers = db.sessions.getPlayers(sessionId);
   const players = dbPlayers.map((p) => {
     const character = db.characters.findById(p.characterId);
+    const user = db.users.findById(p.userId);
     return {
-      userId: p.userId,
+      id: p.userId,
+      name: user?.display_name ?? character?.name ?? "Unknown",
       characterName: character?.name ?? "Unknown",
       characterClass: character?.class ?? "warrior",
       ready: p.isReady,
@@ -379,7 +382,7 @@ export function getLobbyState(sessionId: string): {
     joinCode: session.joinCode,
     config: session.config,
     players,
-    status: session.status,
+    state: session.status,
   };
 }
 

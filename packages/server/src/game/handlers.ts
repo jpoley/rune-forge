@@ -49,6 +49,74 @@ import type {
  */
 export function registerGameHandlers(): void {
   // =========================================================================
+  // Character Management
+  // =========================================================================
+
+  /**
+   * List user's characters.
+   */
+  registerHandler("list_characters", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    if (!user) {
+      sendError(ws, "AUTH_REQUIRED", "Not authenticated", seq);
+      return;
+    }
+
+    const db = getDb();
+    const characters = db.characters.getSummariesByUserId(user.sub);
+
+    sendMessage(ws, "characters_list", { characters }, seq);
+  });
+
+  /**
+   * Create a new character.
+   */
+  registerHandler("create_character", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    if (!user) {
+      sendError(ws, "AUTH_REQUIRED", "Not authenticated", seq);
+      return;
+    }
+
+    const data = payload as {
+      name: string;
+      class: "warrior" | "ranger" | "mage" | "rogue";
+    };
+
+    if (!data.name || !data.class) {
+      sendError(ws, "INVALID_PAYLOAD", "Name and class are required", seq);
+      return;
+    }
+
+    const db = getDb();
+    const { randomUUID } = await import("crypto");
+
+    try {
+      const character = db.characters.create(user.sub, {
+        id: `char-${randomUUID()}`,
+        name: data.name,
+        class: data.class,
+        appearance: {
+          bodyType: "medium",
+          skinTone: "#c9a882",
+          hairColor: "#4a3728",
+          hairStyle: "short",
+        },
+      });
+
+      sendMessage(ws, "character_created", {
+        id: character.id,
+        name: character.name,
+        class: character.class,
+        level: character.level,
+      }, seq);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create character";
+      sendError(ws, "CREATE_FAILED", message, seq);
+    }
+  });
+
+  // =========================================================================
   // Session Management
   // =========================================================================
 
@@ -65,12 +133,15 @@ export function registerGameHandlers(): void {
     try {
       const data = payload as CreateGamePayload;
 
-      const session = createSession(user.sub, {
+      const config: Parameters<typeof createSession>[1] = {
         maxPlayers: data.config?.maxPlayers ?? 4,
-        mapSeed: data.config?.mapSeed,
         difficulty: data.config?.difficulty ?? "normal",
         turnTimeLimit: data.config?.turnTimeLimit ?? 0,
-      });
+      };
+      if (data.config?.mapSeed !== undefined) {
+        config.mapSeed = data.config.mapSeed;
+      }
+      const session = createSession(user.sub, config);
 
       // Join the session with character
       if (data.characterId) {
@@ -359,7 +430,12 @@ export function registerGameHandlers(): void {
 
         case "skip_turn":
           if (session.gameState) {
-            const result = executeGameAction(sessionId, user.sub, { type: "end_turn" });
+            const currentUnitId = session.gameState.combat.turnState?.unitId;
+            if (!currentUnitId) {
+              sendError(ws, "INVALID_STATE", "No current turn to skip", seq);
+              return;
+            }
+            const result = executeGameAction(sessionId, user.sub, { type: "end_turn", unitId: currentUnitId });
             if (!result.success) {
               sendError(ws, "INVALID_ACTION", result.error ?? "Failed to skip turn", seq);
               return;

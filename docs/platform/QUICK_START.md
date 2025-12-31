@@ -29,7 +29,7 @@ pnpm install
 ./scripts/dev.sh
 
 # Or manually:
-pnpm run dev:server  # http://localhost:3000
+pnpm run dev:server  # http://localhost:41204
 pnpm run dev:client  # http://localhost:5173
 ```
 
@@ -51,7 +51,7 @@ docker-compose up --build
 ```
 
 Access:
-- Game: http://localhost:3000
+- Game: http://localhost:41204
 - Grafana: http://localhost:3001
 
 ### Production (Full Stack)
@@ -65,7 +65,7 @@ vim .env.production  # Fill in secrets
 docker-compose -f docker/docker-compose.prod.yml up -d
 
 # 3. Verify health
-curl http://localhost:3000/api/health
+curl http://localhost:41204/api/health
 ```
 
 ## CI/CD Setup
@@ -200,11 +200,11 @@ sudo tailscale status
 sudo tailscale ping runeforge-server
 
 # Verify firewall
-sudo iptables -L -n | grep 3000
+sudo iptables -L -n | grep 41204
 
 # Test from player side
 tailscale ping runeforge-server
-curl http://runeforge-server.tail-scale.ts.net:3000/api/health
+curl http://runeforge-server.tail-scale.ts.net:41204/api/health
 ```
 
 ### High Latency
@@ -213,7 +213,7 @@ curl http://runeforge-server.tail-scale.ts.net:3000/api/health
 # Check Grafana dashboard: WebSocket Latency panel
 
 # View active connections
-docker exec runeforge-server ss -tunap | grep :3000
+docker exec runeforge-server ss -tunap | grep :41204
 
 # Inspect LiveKit quality
 docker exec runeforge-livekit livekit-cli room list

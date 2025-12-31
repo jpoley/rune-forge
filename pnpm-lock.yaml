@@ -51,6 +51,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@rune-forge/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@rune-forge/simulation':
         specifier: workspace:*
         version: link:../simulation

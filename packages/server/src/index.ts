@@ -18,7 +18,7 @@ import {
 import { registerGameHandlers } from "./game/index.js";
 import type { GameState } from "@rune-forge/simulation";
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 41204;
 const CLIENT_DIR = process.env.CLIENT_DIR || "../client/dist";
 
 // Initialize database (uses .data/rune-forge.db by default)
@@ -268,20 +268,40 @@ const server = Bun.serve<WSConnectionData>({
 
     // Handle WebSocket upgrade at /ws
     if (path === "/ws") {
+      // Try to authenticate from session cookie during upgrade
+      const cookieHeader = req.headers.get("Cookie");
+      let user = null;
+
+      if (cookieHeader) {
+        const cookies: Record<string, string> = {};
+        for (const cookie of cookieHeader.split(";")) {
+          const [key, value] = cookie.trim().split("=");
+          if (key && value) {
+            cookies[key] = decodeURIComponent(value);
+          }
+        }
+
+        const sessionToken = cookies.session;
+        if (sessionToken) {
+          const { getUserFromSession } = await import("./auth/jwt.js");
+          user = await getUserFromSession(sessionToken);
+        }
+      }
+
       const upgraded = server.upgrade(req, {
         data: {
           id: "",
-          user: null,
-          authDeadline: 0,
+          user, // Set user from cookie (null if not authenticated)
+          authDeadline: user ? 0 : Date.now() + 30000, // No deadline if already authenticated
           sessionId: null,
           lastActivity: Date.now(),
           seq: 0,
-          status: "connected" as const,
+          status: user ? "connected" as const : "connected" as const,
         },
       });
 
       if (upgraded) {
-        log(`${method} ${path} 101 WebSocket upgrade`);
+        log(`${method} ${path} 101 WebSocket upgrade${user ? ` (user: ${user.sub})` : ""}`);
         return undefined as unknown as Response;
       }
 

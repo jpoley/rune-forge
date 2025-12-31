@@ -992,6 +992,72 @@
       min-height: 20px;
     }
 
+    /* Dev Login Section */
+    .dev-login-section {
+      margin-top: 30px;
+      padding-top: 20px;
+    }
+
+    .dev-login-section .divider {
+      color: #555;
+      font-size: 12px;
+      margin-bottom: 15px;
+    }
+
+    .dev-login-input {
+      padding: 12px 20px;
+      font-size: 16px;
+      border: 2px solid #555;
+      border-radius: 8px;
+      background: #2a2a3a;
+      color: #fff;
+      width: 250px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .dev-login-input:focus {
+      outline: none;
+      border-color: #f80;
+    }
+
+    .dev-login-input::placeholder {
+      color: #666;
+    }
+
+    /* Name Input Section (dev mode login) */
+    .name-input-section {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .name-input-section label {
+      display: block;
+      color: #aaa;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .name-input {
+      padding: 12px 20px;
+      font-size: 16px;
+      border: 2px solid #555;
+      border-radius: 8px;
+      background: #2a2a3a;
+      color: #fff;
+      width: 250px;
+      text-align: center;
+    }
+
+    .name-input:focus {
+      outline: none;
+      border-color: #4a6;
+    }
+
+    .name-input::placeholder {
+      color: #666;
+    }
+
     /* Primary & Secondary Buttons */
     .primary-btn {
       padding: 14px 32px;
@@ -1228,6 +1294,26 @@
       border-color: #4a6;
     }
 
+    .lobby-game-status {
+      margin-bottom: 20px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .lobby-game-status.waiting {
+      background: rgba(250, 170, 0, 0.15);
+      color: #fa0;
+      border: 1px solid rgba(250, 170, 0, 0.3);
+    }
+
+    .lobby-game-status.ready {
+      background: rgba(74, 170, 102, 0.15);
+      color: #4a6;
+      border: 1px solid rgba(74, 170, 102, 0.3);
+    }
+
     /* Loading Screen */
     .loading-screen .spinner {
       width: 50px;
@@ -1246,6 +1332,180 @@
     .loading-screen p {
       color: #888;
       font-size: 16px;
+    }
+
+    /* Game Config Modal */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 2000;
+    }
+
+    .modal-content {
+      background: #2a2a3a;
+      border: 2px solid #555;
+      border-radius: 16px;
+      padding: 30px 40px;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .modal-content h2 {
+      font-size: 24px;
+      color: #f80;
+      margin-bottom: 25px;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 16px;
+      border: 2px solid #555;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23fff' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    .form-select:hover {
+      border-color: #777;
+    }
+
+    .form-select:focus {
+      outline: none;
+      border-color: #4a6;
+    }
+
+    .form-select option {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 10px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+
+    /* Character Selection Modal */
+    .character-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+
+    .character-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 15px;
+      margin: 8px 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #444;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .character-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #666;
+    }
+
+    .character-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .character-info .character-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .character-info .character-details {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .character-item .select-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      border: 1px solid #4a6;
+      border-radius: 6px;
+      background: #2a4a2a;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .character-item .select-btn:hover {
+      background: #3a5a3a;
+    }
+
+    .empty-message {
+      color: #666;
+      font-size: 14px;
+      text-align: center;
+      padding: 20px;
+      font-style: italic;
+    }
+
+    .form-divider {
+      color: #555;
+      font-size: 12px;
+      text-align: center;
+      margin: 20px 0 15px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 16px;
+      border: 2px solid #555;
+      border-radius: 8px;
+      background: #1a1a2e;
+      color: #fff;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #4a6;
+    }
+
+    .form-input::placeholder {
+      color: #666;
+    }
+
+    .new-character-section {
+      border-top: 1px solid #444;
+      padding-top: 10px;
     }
   </style>
 </head>
@@ -1284,7 +1544,6 @@
         </div>
 
         <div id="action-bar" style="display: none;">
-          <button class="action-button dm-btn" id="btn-dm">🎲 DM</button>
           <button class="action-button shop-btn" id="btn-shop" disabled style="opacity: 0.4;">🏪 Shop</button>
           <button class="action-button" id="btn-move">Move</button>
           <button class="action-button" id="btn-attack">Attack</button>
@@ -1331,25 +1590,6 @@
           <div class="settings-group">
             <div class="settings-label">Equipped Weapon</div>
             <div id="weapon-selector"></div>
-          </div>
-        </div>
-
-        <div id="dm-panel" style="display: none;">
-          <h3>🎲 DM Options</h3>
-          <div class="dm-description">Give weapons to player</div>
-          <div id="dm-weapon-buttons"></div>
-          <div class="dm-divider"></div>
-          <div class="dm-description">Give gold to player</div>
-          <div class="dm-gold-buttons">
-            <button class="dm-gold-btn" data-amount="10">+10 Gold</button>
-            <button class="dm-gold-btn" data-amount="50">+50 Gold</button>
-            <button class="dm-gold-btn" data-amount="100">+100 Gold</button>
-          </div>
-          <div class="dm-divider"></div>
-          <div class="dm-description">Sleep heal amount</div>
-          <div class="dm-sleep-setting">
-            <input type="number" id="dm-sleep-heal" value="5" min="0" max="100" style="width: 50px; padding: 4px; border-radius: 4px; border: 1px solid #654; background: #2a2a3a; color: #fff;">
-            <span style="margin-left: 8px; color: #aaa;">HP per sleep</span>
           </div>
         </div>
 

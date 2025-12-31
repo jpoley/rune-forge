@@ -30,7 +30,7 @@ pnpm run build
 bun run packages/server/dist/index.js
 
 # Open browser
-open http://localhost:3000
+open http://localhost:41204
 ```
 
 ### Running Multiplayer Mode
@@ -44,7 +44,7 @@ POCKET_ID_CLIENT_ID=rune-forge
 POCKET_ID_CLIENT_SECRET=your-secret-here
 
 # Optional overrides
-PORT=3000
+PORT=41204
 DATABASE_PATH=.data/rune-forge.db
 ```
 
@@ -58,7 +58,7 @@ bun run packages/server/dist/index.js
 3. **Access multiplayer mode:**
 
 ```
-http://localhost:3000?mode=multi
+http://localhost:41204?mode=multi
 ```
 
 ### URL Parameters
@@ -76,7 +76,7 @@ http://localhost:3000?mode=multi
 ./scripts/dev.sh
 
 # Or separately:
-pnpm run dev:server   # Server on port 3000
+pnpm run dev:server   # Server on port 41204
 pnpm run dev:client   # Vite dev server on port 5173 (proxies API)
 ```
 
@@ -84,10 +84,10 @@ pnpm run dev:client   # Vite dev server on port 5173 (proxies API)
 
 To test multiplayer with multiple players on a single machine:
 
-1. Open browser tab 1: `http://localhost:3000?mode=multi` (Player 1 / DM)
+1. Open browser tab 1: `http://localhost:41204?mode=multi` (Player 1 / DM)
 2. Log in with Pocket ID
 3. Create a game → Note the join code (e.g., "ABC123")
-4. Open browser tab 2 in incognito: `http://localhost:3000?mode=multi` (Player 2)
+4. Open browser tab 2 in incognito: `http://localhost:41204?mode=multi` (Player 2)
 5. Log in with a different Pocket ID account
 6. Enter the join code to join the game
 7. Both players mark "Ready"
@@ -129,7 +129,7 @@ console.log(window.mp?.ws)        // View WebSocket status
 
 ```bash
 # Check server status
-curl http://localhost:3000/api/health
+curl http://localhost:41204/api/health
 
 # Response
 {
@@ -423,7 +423,7 @@ credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
   - hostname: runeforge.example.com
-    service: http://localhost:3000
+    service: http://localhost:41204
   - service: http_status:404
 ```
 
@@ -1989,7 +1989,7 @@ Active Player        Server              All Players
 // server/src/config.ts
 export const CONFIG = {
   // Server
-  port: Number(process.env.PORT) || 3000,
+  port: Number(process.env.PORT) || 41204,
   host: process.env.HOST || '0.0.0.0',
 
   // Database

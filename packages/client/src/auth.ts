@@ -145,6 +145,20 @@ export class AuthClient {
   }
 
   /**
+   * Dev login (no OIDC required).
+   * Only works when auth is not enabled/configured.
+   */
+  devLogin(name: string, redirectUri?: string): void {
+    let loginUrl = `${AUTH_API_BASE}/dev-login?name=${encodeURIComponent(name)}`;
+
+    if (redirectUri) {
+      loginUrl += `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    }
+
+    window.location.href = loginUrl;
+  }
+
+  /**
    * Logout the current user.
    *
    * @param sso - If true, also log out from the identity provider

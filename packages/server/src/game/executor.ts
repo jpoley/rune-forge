@@ -13,7 +13,8 @@ import {
   type GameState,
   type GameEvent,
   type Unit,
-  type CombatState,
+  type MapGeneratorOptions,
+  type UnitGeneratorOptions,
 } from "@rune-forge/simulation";
 import { getDb } from "../db/index.js";
 import { broadcastToSession } from "../ws/index.js";
@@ -43,8 +44,13 @@ export function initializeGame(sessionId: string): GameState {
 
   const players = db.sessions.getPlayers(sessionId);
 
-  // Generate map with session seed
-  const map = generateMap(session.config.mapSeed, 20, 20);
+  // Generate map with session seed using proper options
+  const mapOptions: MapGeneratorOptions = {
+    seed: session.config.mapSeed,
+    wallDensity: 0.12,
+    name: `Session ${sessionId}`,
+  };
+  const map = generateMap(mapOptions);
 
   // Create player units from characters
   const playerUnits: Unit[] = [];
@@ -56,16 +62,14 @@ export function initializeGame(sessionId: string): GameState {
 
     if (!character) continue;
 
+    const stats = calculateCharacterStats(character.class, character.level);
     const unit: Unit = {
       id: `player-${player.userId}`,
+      type: "player",
       name: character.name,
-      team: "player",
       position: spawnPositions[i]!,
-      stats: calculateCharacterStats(character.class, character.level),
-      hp: 0, // Will be set to maxHp
-      isPlayer: true,
+      stats,
     };
-    unit.hp = unit.stats.maxHp;
 
     playerUnits.push(unit);
 
@@ -73,9 +77,16 @@ export function initializeGame(sessionId: string): GameState {
     db.sessions.assignUnitId(sessionId, player.userId, unit.id);
   }
 
-  // Generate monsters based on difficulty
+  // Generate monsters based on difficulty using proper options
   const monsterCount = getMonsterCount(session.config.difficulty, players.length);
-  const monsters = generateUnits(monsterCount, "monster", session.config.mapSeed);
+  const unitOptions: UnitGeneratorOptions = {
+    seed: session.config.mapSeed,
+    playerStart: spawnPositions[0] ?? { x: 2, y: 2 },
+    monsterCount,
+  };
+  const generatedUnits = generateUnits(unitOptions);
+  // Filter out the generated player (we already created our own player units)
+  const monsters = generatedUnits.filter(u => u.type === "monster");
 
   // Combine units
   const units = [...playerUnits, ...monsters];
@@ -85,17 +96,19 @@ export function initializeGame(sessionId: string): GameState {
     map,
     units,
     combat: {
-      phase: "setup",
+      phase: "not_started",
+      round: 0,
       initiativeOrder: [],
+      currentTurnIndex: 0,
       turnState: null,
-      turnNumber: 0,
-      roundNumber: 0,
     },
-    loot: [],
+    turnHistory: [],
+    lootDrops: [],
     playerInventory: {
       gold: 0,
       silver: 0,
-      items: [],
+      weapons: [],
+      equippedWeaponId: null,
     },
   };
 
@@ -161,15 +174,8 @@ export function executeGameAction(
   const oldVersion = session.stateVersion;
 
   try {
+    // executeAction throws on invalid actions
     const result = executeAction(action, session.gameState);
-
-    if (!result.success) {
-      return {
-        success: false,
-        events: [],
-        error: result.error ?? "INVALID_ACTION",
-      };
-    }
 
     // Update session state
     session.gameState = result.state;
@@ -195,8 +201,8 @@ export function executeGameAction(
     // Check for game over
     checkGameOver(session);
 
-    // Handle turn change
-    if (result.events.some((e) => e.type === "turn_changed")) {
+    // Handle turn change (check for turn_started event, not turn_changed)
+    if (result.events.some((e) => e.type === "turn_started")) {
       handleTurnChange(session);
     }
 
@@ -210,7 +216,7 @@ export function executeGameAction(
     return {
       success: false,
       events: [],
-      error: "EXECUTION_ERROR",
+      error: error instanceof Error ? error.message : "EXECUTION_ERROR",
     };
   }
 }
@@ -263,11 +269,11 @@ function handleTurnChange(session: GameSessionState): void {
     executeMonsterTurn(session);
   }
 
-  // Broadcast turn change
+  // Broadcast turn change (use round from CombatState)
   broadcastToSession(session.id, "turn_change", {
     currentUnitId,
     currentUserId: currentPlayer?.userId ?? null,
-    turnNumber: session.gameState.combat.turnNumber,
+    round: session.gameState.combat.round,
     isPlayerTurn: !!currentPlayer,
   });
 }
@@ -281,10 +287,17 @@ function handleTurnTimeout(sessionId: string): void {
 
   console.log(`[game] Turn timeout for session ${sessionId}`);
 
-  // Auto end turn
-  const result = executeAction({ type: "end_turn" }, session.gameState);
+  // Get current unit to provide unitId for end_turn action
+  const currentUnitId = session.gameState.combat.turnState?.unitId;
+  if (!currentUnitId) return;
 
-  if (result.success) {
+  try {
+    // Auto end turn - end_turn requires unitId
+    const result = executeAction(
+      { type: "end_turn", unitId: currentUnitId },
+      session.gameState
+    );
+
     session.gameState = result.state;
     session.stateVersion += 1;
 
@@ -292,6 +305,8 @@ function handleTurnTimeout(sessionId: string): void {
     broadcastToSession(sessionId, "turn_timeout", {});
 
     handleTurnChange(session);
+  } catch (error) {
+    console.error(`[game] Turn timeout execution error:`, error);
   }
 }
 
@@ -301,20 +316,29 @@ function handleTurnTimeout(sessionId: string): void {
 function executeMonsterTurn(session: GameSessionState): void {
   if (!session.gameState) return;
 
+  const currentUnitId = session.gameState.combat.turnState?.unitId;
+  if (!currentUnitId) return;
+
   // Simple AI: end turn after a short delay
   // TODO: Implement actual monster AI
   setTimeout(() => {
     if (!session.gameState) return;
 
-    const result = executeAction({ type: "end_turn" }, session.gameState);
+    try {
+      // end_turn requires unitId
+      const result = executeAction(
+        { type: "end_turn", unitId: currentUnitId },
+        session.gameState
+      );
 
-    if (result.success) {
       session.gameState = result.state;
       session.stateVersion += 1;
 
       broadcastToSession(session.id, "events", { events: result.events });
 
       handleTurnChange(session);
+    } catch (error) {
+      console.error(`[game] Monster turn execution error:`, error);
     }
   }, 1000);
 }
@@ -347,21 +371,24 @@ function calculateCharacterStats(
   characterClass: string,
   level: number
 ): Unit["stats"] {
-  const baseStats: Record<string, Unit["stats"]> = {
-    warrior: { maxHp: 12, attack: 4, defense: 3, initiative: 2, moveRange: 3 },
-    ranger: { maxHp: 10, attack: 3, defense: 2, initiative: 4, moveRange: 4 },
-    mage: { maxHp: 8, attack: 5, defense: 1, initiative: 3, moveRange: 3 },
-    rogue: { maxHp: 9, attack: 3, defense: 2, initiative: 5, moveRange: 5 },
+  const baseStats: Record<string, { hp: number; maxHp: number; attack: number; defense: number; initiative: number; moveRange: number; attackRange: number }> = {
+    warrior: { hp: 12, maxHp: 12, attack: 4, defense: 3, initiative: 2, moveRange: 3, attackRange: 1 },
+    ranger: { hp: 10, maxHp: 10, attack: 3, defense: 2, initiative: 4, moveRange: 4, attackRange: 3 },
+    mage: { hp: 8, maxHp: 8, attack: 5, defense: 1, initiative: 3, moveRange: 3, attackRange: 2 },
+    rogue: { hp: 9, maxHp: 9, attack: 3, defense: 2, initiative: 5, moveRange: 5, attackRange: 1 },
   };
 
   const base = baseStats[characterClass] ?? baseStats.warrior!;
+  const scaledMaxHp = Math.floor(base.maxHp + (level - 1) * 2);
 
   return {
-    maxHp: Math.floor(base.maxHp + (level - 1) * 2),
+    hp: scaledMaxHp,
+    maxHp: scaledMaxHp,
     attack: Math.floor(base.attack + (level - 1) * 0.5),
     defense: Math.floor(base.defense + (level - 1) * 0.25),
     initiative: base.initiative,
     moveRange: base.moveRange,
+    attackRange: base.attackRange,
   };
 }
 

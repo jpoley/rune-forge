@@ -75,7 +75,7 @@ Once connected to the Tailnet:
    ```
    or the direct Tailscale IP:
    ```
-   http://100.x.y.z:3000
+   http://100.x.y.z:41204
    ```
 
 3. Log in with Pocket ID (passkey or password)
@@ -116,7 +116,7 @@ Tailscale uses DERP relays if direct connections fail. For better performance:
 │  ┌─────────────┐      WireGuard      ┌─────────────────┐   │
 │  │   Player    │◄────────────────────►│  Game Server    │   │
 │  │  (Client)   │     Encrypted        │  (Rune Forge)   │   │
-│  │ 100.x.y.z   │                      │  100.a.b.c:3000 │   │
+│  │ 100.x.y.z   │                      │  100.a.b.c:41204│   │
 │  └─────────────┘                      └─────────────────┘   │
 │         ▲                                      ▲            │
 │         │                                      │            │
@@ -165,7 +165,7 @@ For more control, configure ACLs in `tailscale.com/admin/acls`:
     {
       "action": "accept",
       "src": ["tag:players"],
-      "dst": ["tag:gameserver:3000"]
+      "dst": ["tag:gameserver:41204"]
     }
   ],
   "tagOwners": {

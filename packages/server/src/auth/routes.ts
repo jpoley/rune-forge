@@ -201,6 +201,14 @@ export async function handleAuthRoutes(req: Request): Promise<Response | null> {
       // Get user info
       const user = await getUserInfo(tokens.accessToken);
 
+      // Save user to database
+      const { getDb } = await import("../db/index.js");
+      getDb().users.upsert({
+        id: user.sub,
+        displayName: user.name ?? user.email ?? user.sub,
+        email: user.email ?? null,
+      });
+
       // Create session token
       const sessionToken = await createSessionToken(
         user,
@@ -274,6 +282,52 @@ export async function handleAuthRoutes(req: Request): Promise<Response | null> {
 
     console.log("[auth] User logged out (SSO)");
     return redirectResponse(logoutUrl, headers);
+  }
+
+  // GET /api/auth/dev-login - Development-only login (no OIDC required)
+  if (path === "/api/auth/dev-login" && method === "GET") {
+    // Only allow in development
+    if (process.env.NODE_ENV === "production") {
+      return jsonResponse({ error: "Dev login not available in production" }, 403);
+    }
+
+    const name = url.searchParams.get("name") || "Developer";
+    const redirectUri = url.searchParams.get("redirect_uri") || "/";
+
+    // Create a fake user
+    const user: UserInfo = {
+      sub: `dev-${Date.now()}`,
+      name,
+      email: `${name.toLowerCase().replace(/\s+/g, ".")}@dev.local`,
+      picture: undefined,
+    };
+
+    // Save user to database
+    const { getDb } = await import("../db/index.js");
+    getDb().users.upsert({
+      id: user.sub,
+      displayName: name, // use the local string variable (guaranteed non-null)
+      email: user.email ?? null,
+    });
+
+    // Create session token
+    const sessionToken = await createSessionToken(
+      user,
+      "dev-access-token",
+      "dev-id-token",
+      undefined
+    );
+
+    const headers = new Headers();
+    setCookie(
+      headers,
+      "session",
+      sessionToken,
+      config.sessionExpireHours * 60 * 60
+    );
+
+    console.log(`[auth] Dev login: ${user.name} (${user.sub})`);
+    return redirectResponse(redirectUri, headers);
   }
 
   // GET /api/auth/me - Get current user

@@ -834,7 +834,7 @@ export class GameUI {
    */
   addLogEntry(
     message: string,
-    type: "damage" | "move" | "turn" | "victory" | "defeat" = "turn"
+    type: "damage" | "move" | "turn" | "victory" | "defeat" | "system" = "turn"
   ): void {
     const entry = document.createElement("div");
     entry.className = `log-entry ${type}`;

@@ -119,11 +119,9 @@ export class MultiplayerController {
         screen: "main_menu",
       });
 
-      // Connect WebSocket with session token
-      const token = authClient.getSessionToken();
-      if (token) {
-        wsClient.connect(token);
-      }
+      // Connect WebSocket - server authenticates from cookie during upgrade
+      // (session cookie is HttpOnly so we can't read it in JS)
+      wsClient.connect();
     } else {
       this.updateState({
         user: null,
@@ -138,11 +136,9 @@ export class MultiplayerController {
           this.updateState({ user: status.user });
 
           // Connect WebSocket if not connected
+          // Server authenticates from cookie during upgrade
           if (!wsClient.isConnected()) {
-            const token = authClient.getSessionToken();
-            if (token) {
-              wsClient.connect(token);
-            }
+            wsClient.connect();
           }
         } else {
           this.updateState({
@@ -177,10 +173,21 @@ export class MultiplayerController {
   }
 
   /**
-   * Initiate login.
+   * Initiate login with Pocket ID.
    */
   login(): void {
-    authClient.login(window.location.pathname);
+    // Include query string to preserve ?mode=multi
+    const redirectUri = window.location.pathname + window.location.search;
+    authClient.login(redirectUri);
+  }
+
+  /**
+   * Dev login (no OIDC required).
+   */
+  devLogin(name: string): void {
+    // Include query string to preserve ?mode=multi
+    const redirectUri = window.location.pathname + window.location.search;
+    authClient.devLogin(name, redirectUri);
   }
 
   /**
@@ -254,6 +261,28 @@ export class MultiplayerController {
       isMyTurn: false,
       turnInfo: null,
     });
+  }
+
+  /**
+   * List user's characters.
+   */
+  async listCharacters(): Promise<{
+    characters: Array<{ id: string; name: string; class: string; level: number }>;
+  }> {
+    return wsClient.listCharacters();
+  }
+
+  /**
+   * Create a new character.
+   */
+  async createCharacter(
+    name: string,
+    characterClass: string
+  ): Promise<{ id: string; name: string; class: string; level: number }> {
+    return wsClient.createCharacter(
+      name,
+      characterClass as "warrior" | "ranger" | "mage" | "rogue"
+    );
   }
 
   /**
@@ -371,11 +400,12 @@ export class MultiplayerController {
     // Handle tile clicks - send move action
     this.renderer.onTileClick = (pos) => {
       if (!this.state.isMyTurn || this.state.pendingAction) return;
+      if (!this.state.myUnitId) return; // Need unit ID to send actions
 
       // Send move action (server will validate)
       this.sendAction({
         type: "move",
-        unitId: this.state.myUnitId ?? undefined,
+        unitId: this.state.myUnitId,
         path: [pos], // Server will calculate full path
       });
     };
@@ -383,12 +413,13 @@ export class MultiplayerController {
     // Handle unit clicks - send attack action
     this.renderer.onUnitClick = (unitId) => {
       if (!this.state.isMyTurn || this.state.pendingAction) return;
+      if (!this.state.myUnitId) return; // Need unit ID to send actions
 
       const target = this.state.gameState?.units.find((u) => u.id === unitId);
       if (target && target.type === "monster") {
         this.sendAction({
           type: "attack",
-          unitId: this.state.myUnitId ?? undefined,
+          unitId: this.state.myUnitId,
           targetId: unitId,
         });
       }
@@ -397,10 +428,11 @@ export class MultiplayerController {
     // Handle loot clicks
     this.renderer.onLootClick = (lootId) => {
       if (!this.state.isMyTurn || this.state.pendingAction) return;
+      if (!this.state.myUnitId) return; // Need unit ID to send actions
 
       this.sendAction({
         type: "collect_loot",
-        unitId: this.state.myUnitId ?? undefined,
+        unitId: this.state.myUnitId,
         lootId,
       });
     };
@@ -475,7 +507,7 @@ export class MultiplayerController {
 
     // Delta state updates
     this.cleanups.push(
-      wsClient.on<DeltaStatePayload & { delta: { changes: Array<{ path: string; value: unknown }> } }>(
+      wsClient.on<{ delta: { fromVersion: number; toVersion: number; changes: Array<{ path: string; value: unknown }> } }>(
         "state_delta",
         (payload) => {
           // Apply delta to current state
@@ -487,7 +519,7 @@ export class MultiplayerController {
 
             this.updateState({
               gameState: newState,
-              stateVersion: payload.toVersion,
+              stateVersion: payload.delta.toVersion,
             });
 
             // Re-render
@@ -501,7 +533,8 @@ export class MultiplayerController {
     this.cleanups.push(
       wsClient.on<EventsPayload>("events", (payload) => {
         for (const event of payload.events) {
-          this.handleGameEvent(event);
+          // Cast from shared GameEvent to simulation GameEvent (runtime compatible)
+          this.handleGameEvent(event as unknown as GameEvent);
         }
       })
     );
