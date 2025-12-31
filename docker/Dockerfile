@@ -9,6 +9,7 @@ RUN corepack enable pnpm && npm install -g bun
 # Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/simulation/package.json ./packages/simulation/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/client/package.json ./packages/client/
 
 # Install dependencies
@@ -17,10 +18,15 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY tsconfig.json ./
 COPY packages/simulation/ ./packages/simulation/
+COPY packages/shared/ ./packages/shared/
 COPY packages/client/ ./packages/client/
 
 # Build simulation first (client depends on it)
 WORKDIR /app/packages/simulation
+RUN pnpm run build
+
+# Build shared
+WORKDIR /app/packages/shared
 RUN pnpm run build
 
 # Build client
@@ -38,6 +44,7 @@ RUN corepack enable pnpm && npm install -g bun
 # Copy package files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/simulation/package.json ./packages/simulation/
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/server/package.json ./packages/server/
 
 # Install dependencies
@@ -46,10 +53,15 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY tsconfig.json ./
 COPY packages/simulation/ ./packages/simulation/
+COPY packages/shared/ ./packages/shared/
 COPY packages/server/ ./packages/server/
 
 # Build simulation
 WORKDIR /app/packages/simulation
+RUN pnpm run build
+
+# Build shared
+WORKDIR /app/packages/shared
 RUN pnpm run build
 
 # Build server
