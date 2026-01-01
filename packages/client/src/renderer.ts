@@ -180,7 +180,10 @@ export class IsometricRenderer {
 
     if (intersects.length > 0) {
       const mesh = intersects[0]!.object as THREE.Mesh;
-      const pos = mesh.userData.position as Position;
+      const pos = mesh.userData.position as Position | undefined;
+
+      // Skip meshes without position data (e.g., highlight overlays)
+      if (!pos) return;
 
       if (!this.hoveredTile || this.hoveredTile.x !== pos.x || this.hoveredTile.y !== pos.y) {
         this.hoveredTile = pos;

@@ -26,7 +26,7 @@ import {
   getSession,
   getSessionByJoinCode,
 } from "./session.js";
-import { initializeGame, executeGameAction } from "./executor.js";
+import { initializeGame, executeGameAction, handleTurnChange } from "./executor.js";
 import {
   grantGold,
   grantXp,
@@ -69,7 +69,7 @@ export function registerGameHandlers(): void {
   });
 
   /**
-   * Create a new character.
+   * Create a new character (server-generated ID).
    */
   registerHandler("create_character", async (ws, payload, seq) => {
     const user = ws.data.user;
@@ -83,6 +83,12 @@ export function registerGameHandlers(): void {
       class: "warrior" | "ranger" | "mage" | "rogue";
     };
 
+    console.log("[game] create_character request:", {
+      userId: user.sub,
+      name: data.name,
+      class: data.class,
+    });
+
     if (!data.name || !data.class) {
       sendError(ws, "INVALID_PAYLOAD", "Name and class are required", seq);
       return;
@@ -92,8 +98,11 @@ export function registerGameHandlers(): void {
     const { randomUUID } = await import("crypto");
 
     try {
+      const charId = `char-${randomUUID()}`;
+      console.log("[game] create_character generating ID:", charId);
+
       const character = db.characters.create(user.sub, {
-        id: `char-${randomUUID()}`,
+        id: charId,
         name: data.name,
         class: data.class,
         appearance: {
@@ -104,6 +113,11 @@ export function registerGameHandlers(): void {
         },
       });
 
+      console.log("[game] create_character success:", {
+        id: character.id,
+        name: character.name,
+      });
+
       sendMessage(ws, "character_created", {
         id: character.id,
         name: character.name,
@@ -111,8 +125,113 @@ export function registerGameHandlers(): void {
         level: character.level,
       }, seq);
     } catch (error) {
+      console.error("[game] create_character error:", error);
       const message = error instanceof Error ? error.message : "Failed to create character";
       sendError(ws, "CREATE_FAILED", message, seq);
+    }
+  });
+
+  /**
+   * Sync a character from client (upsert with client-provided ID).
+   * Creates the character if it doesn't exist, updates persona if it does.
+   */
+  registerHandler("sync_character", async (ws, payload, seq) => {
+    const user = ws.data.user;
+    if (!user) {
+      sendError(ws, "AUTH_REQUIRED", "Not authenticated", seq);
+      return;
+    }
+
+    const data = payload as {
+      id: string;
+      name: string;
+      class: "warrior" | "ranger" | "mage" | "rogue";
+      appearance: {
+        bodyType: "small" | "medium" | "large";
+        skinTone: string;
+        hairColor: string;
+        hairStyle: "bald" | "short" | "medium" | "long" | "ponytail";
+        facialHair?: "none" | "stubble" | "beard" | "mustache";
+      };
+      backstory?: string | null;
+    };
+
+    console.log("[game] sync_character request:", {
+      userId: user.sub,
+      characterId: data.id,
+      name: data.name,
+      class: data.class,
+    });
+
+    if (!data.id || !data.name || !data.class || !data.appearance) {
+      console.log("[game] sync_character invalid payload:", data);
+      sendError(ws, "INVALID_PAYLOAD", "id, name, class, and appearance are required", seq);
+      return;
+    }
+
+    const db = getDb();
+
+    try {
+      // Check if character already exists
+      const existing = db.characters.findById(data.id);
+      console.log("[game] sync_character existing check:", existing ? `Found (owner: ${existing.userId})` : "Not found");
+
+      let character;
+      if (existing) {
+        // Verify ownership
+        if (existing.userId !== user.sub) {
+          console.log("[game] sync_character ownership mismatch:", {
+            existingOwner: existing.userId,
+            requestingUser: user.sub,
+          });
+          sendError(ws, "FORBIDDEN", "Character belongs to another user", seq);
+          return;
+        }
+        // Update persona only
+        console.log("[game] sync_character updating existing character");
+        character = db.characters.updatePersona(data.id, user.sub, {
+          name: data.name,
+          class: data.class,
+          appearance: data.appearance,
+          backstory: data.backstory,
+        });
+      } else {
+        // Create new character with client-provided ID
+        console.log("[game] sync_character creating new character with ID:", data.id);
+        character = db.characters.create(user.sub, {
+          id: data.id,
+          name: data.name,
+          class: data.class,
+          appearance: data.appearance,
+          backstory: data.backstory,
+        });
+      }
+
+      if (!character) {
+        console.error("[game] sync_character failed to create/update");
+        sendError(ws, "SYNC_FAILED", "Failed to sync character", seq);
+        return;
+      }
+
+      console.log("[game] sync_character success:", {
+        id: character.id,
+        name: character.name,
+        level: character.level,
+      });
+
+      sendMessage(ws, "character_synced", {
+        id: character.id,
+        name: character.name,
+        class: character.class,
+        level: character.level,
+        xp: character.xp,
+        gold: character.gold,
+        silver: character.silver,
+      }, seq);
+    } catch (error) {
+      console.error("[game] sync_character error:", error);
+      const message = error instanceof Error ? error.message : "Failed to sync character";
+      sendError(ws, "SYNC_FAILED", message, seq);
     }
   });
 
@@ -132,20 +251,54 @@ export function registerGameHandlers(): void {
 
     try {
       const data = payload as CreateGamePayload;
+      console.log("[game] create_game request:", {
+        userId: user.sub,
+        characterId: data.characterId,
+        config: data.config,
+      });
 
       const config: Parameters<typeof createSession>[1] = {
         maxPlayers: data.config?.maxPlayers ?? 4,
         difficulty: data.config?.difficulty ?? "normal",
         turnTimeLimit: data.config?.turnTimeLimit ?? 0,
+        // DM Options - wire through monsterCount and playerMoveRange
+        monsterCount: data.config?.monsterCount ?? 3,
+        playerMoveRange: data.config?.playerMoveRange ?? 3,
+        // NPC party members
+        npcCount: data.config?.npcCount ?? 0,
+        npcClasses: data.config?.npcClasses ?? [],
       };
       if (data.config?.mapSeed !== undefined) {
         config.mapSeed = data.config.mapSeed;
       }
+      console.log("[game] Session config with DM options:", config);
+
+      // Check if character exists before creating session
+      if (data.characterId) {
+        const db = getDb();
+        const charExists = db.characters.belongsToUser(data.characterId, user.sub);
+        console.log("[game] Character check:", {
+          characterId: data.characterId,
+          userId: user.sub,
+          exists: charExists,
+        });
+
+        if (!charExists) {
+          // List all characters for this user for debugging
+          const userChars = db.characters.getSummariesByUserId(user.sub);
+          console.log("[game] User's characters in DB:", userChars);
+          sendError(ws, "CHARACTER_NOT_FOUND", `Character ${data.characterId} not found for user ${user.sub}`, seq);
+          return;
+        }
+      }
+
       const session = createSession(user.sub, config);
+      console.log("[game] Session created:", session.id);
 
       // Join the session with character
       if (data.characterId) {
         joinSession(session.id, user.sub, data.characterId);
+        console.log("[game] Player joined session with character");
       }
 
       // Set connection's session
@@ -162,6 +315,7 @@ export function registerGameHandlers(): void {
         sendMessage(ws, "lobby_state", lobbyState);
       }
     } catch (error) {
+      console.error("[game] create_game error:", error);
       const message = error instanceof Error ? error.message : "Failed to create game";
       sendError(ws, message, message, seq);
     }
@@ -393,7 +547,7 @@ export function registerGameHandlers(): void {
       switch (data.command.command) {
         case "start_game":
           startGame(sessionId, user.sub);
-          initializeGame(sessionId);
+          initializeGame(sessionId, data.command.monsterTypes);
 
           // Send full state to all players
           const gameSession = getSession(sessionId);
@@ -409,6 +563,9 @@ export function registerGameHandlers(): void {
                 });
               }
             }
+
+            // Trigger the first turn (broadcasts turn_change and runs monster AI if needed)
+            handleTurnChange(gameSession);
           }
           break;
 

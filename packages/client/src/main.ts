@@ -2,7 +2,7 @@
  * Main entry point for Rune Forge client.
  *
  * Supports both single-player (offline) and multiplayer modes.
- * Mode is determined by URL parameter or auth availability.
+ * Users choose mode from the start screen, or mode can be forced via URL.
  */
 
 import { GameController } from "./game.js";
@@ -13,29 +13,29 @@ import { ScreenManager, type ScreenManagerCallbacks } from "./screens.js";
 // Mode Detection
 // =============================================================================
 
-type GameMode = "singleplayer" | "multiplayer";
+type GameMode = "singleplayer" | "multiplayer" | "choose";
 
 function detectGameMode(): GameMode {
-  // Check URL parameter first
   const params = new URLSearchParams(window.location.search);
   const modeParam = params.get("mode");
 
+  // Force single player
   if (modeParam === "single" || modeParam === "offline") {
     return "singleplayer";
   }
 
+  // Force multiplayer
   if (modeParam === "multi" || modeParam === "online") {
     return "multiplayer";
   }
 
-  // Default: check if we're coming from an auth callback
+  // Coming from auth callback - go to multiplayer
   if (window.location.search.includes("code=")) {
     return "multiplayer";
   }
 
-  // Default to single-player for now
-  // In production, you might default to multiplayer
-  return "singleplayer";
+  // Default: let user choose
+  return "choose";
 }
 
 // =============================================================================
@@ -44,6 +44,12 @@ function detectGameMode(): GameMode {
 
 function initSinglePlayer(container: HTMLElement): GameController {
   console.log("[main] Starting single-player mode");
+
+  // Hide mode selection, show single player menu
+  const modeSelection = document.getElementById("mode-selection");
+  const singlePlayerMenu = document.getElementById("single-player-menu");
+  if (modeSelection) modeSelection.style.display = "none";
+  if (singlePlayerMenu) singlePlayerMenu.style.display = "flex";
 
   const game = new GameController(container);
 
@@ -67,7 +73,7 @@ interface MultiplayerApp {
 async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> {
   console.log("[main] Starting multiplayer mode");
 
-  // Hide single-player start screen
+  // Hide the start screen entirely for multiplayer
   const startScreen = document.getElementById("start-screen");
   if (startScreen) {
     startScreen.style.display = "none";
@@ -87,8 +93,8 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
     onLogout: () => {
       controller.logout();
     },
-    onCreateGame: (characterId) => {
-      controller.createGame(characterId).catch(console.error);
+    onCreateGame: (characterId, config) => {
+      controller.createGame(characterId, config).catch(console.error);
     },
     onJoinGame: (joinCode, characterId) => {
       controller.joinGame(joinCode, characterId).catch(console.error);
@@ -99,8 +105,14 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
     onSetReady: (ready) => {
       controller.setReady(ready);
     },
-    onStartGame: () => {
-      controller.startGame().catch(console.error);
+    onStartGame: (monsterTypes) => {
+      controller.startGame(monsterTypes).catch(console.error);
+    },
+    onNavigateToPartySetup: () => {
+      controller.navigateToScreen("party_setup");
+    },
+    onBackToMainMenu: () => {
+      controller.navigateToScreen("main_menu");
     },
     onFetchCharacters: async () => {
       const result = await controller.listCharacters();
@@ -137,6 +149,37 @@ async function initMultiplayer(container: HTMLElement): Promise<MultiplayerApp> 
 }
 
 // =============================================================================
+// Mode Selection UI
+// =============================================================================
+
+function setupModeSelection(container: HTMLElement): void {
+  // Single Player button
+  document.getElementById("btn-single-player")?.addEventListener("click", () => {
+    initSinglePlayer(container);
+    console.log("🎮 Rune Forge single-player initialized");
+  });
+
+  // Multiplayer button
+  document.getElementById("btn-multiplayer")?.addEventListener("click", async () => {
+    try {
+      await initMultiplayer(container);
+      console.log("🎮 Rune Forge multiplayer initialized");
+    } catch (error) {
+      console.error("Failed to initialize multiplayer:", error);
+      alert("Failed to connect to multiplayer server. Please try again.");
+    }
+  });
+
+  // Back button (from single player menu to mode selection)
+  document.getElementById("btn-back-to-mode")?.addEventListener("click", () => {
+    const modeSelection = document.getElementById("mode-selection");
+    const singlePlayerMenu = document.getElementById("single-player-menu");
+    if (modeSelection) modeSelection.style.display = "flex";
+    if (singlePlayerMenu) singlePlayerMenu.style.display = "none";
+  });
+}
+
+// =============================================================================
 // Entry Point
 // =============================================================================
 
@@ -151,17 +194,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   const mode = detectGameMode();
 
   if (mode === "multiplayer") {
+    // Direct to multiplayer (from URL or auth callback)
     try {
       await initMultiplayer(container);
       console.log("🎮 Rune Forge multiplayer initialized");
     } catch (error) {
       console.error("Failed to initialize multiplayer:", error);
-      // Fallback to single-player
-      console.log("Falling back to single-player mode");
-      initSinglePlayer(container);
+      // Show mode selection as fallback
+      setupModeSelection(container);
     }
-  } else {
+  } else if (mode === "singleplayer") {
+    // Direct to single player (from URL)
     initSinglePlayer(container);
     console.log("🎮 Rune Forge single-player initialized");
+  } else {
+    // Show mode selection
+    setupModeSelection(container);
+    console.log("🎮 Rune Forge ready - choose your mode");
   }
 });

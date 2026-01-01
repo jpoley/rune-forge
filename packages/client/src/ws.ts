@@ -124,6 +124,13 @@ export class WSClient {
   }
 
   /**
+   * Check if already connecting or connected (to prevent duplicate connections).
+   */
+  isConnectedOrConnecting(): boolean {
+    return this.status === "connected" || this.status === "connecting" || this.status === "authenticating";
+  }
+
+  /**
    * Connect to the WebSocket server.
    * Token is optional - server can authenticate from HttpOnly cookie during upgrade.
    */
@@ -559,6 +566,10 @@ export class WSClient {
       mapSeed?: number;
       difficulty?: "easy" | "normal" | "hard";
       turnTimeLimit?: number;
+      monsterCount?: number;
+      playerMoveRange?: number;
+      npcCount?: number;
+      npcClasses?: string[];
     } = {}
   ): Promise<{ sessionId: string; joinCode: string }> {
     return this.request("create_game", {
@@ -567,7 +578,11 @@ export class WSClient {
         maxPlayers: config.maxPlayers ?? 4,
         difficulty: config.difficulty ?? "normal",
         turnTimeLimit: config.turnTimeLimit ?? 0,
+        monsterCount: config.monsterCount ?? 3,
+        playerMoveRange: config.playerMoveRange ?? 3,
         ...(config.mapSeed && { mapSeed: config.mapSeed }),
+        ...(config.npcCount !== undefined && { npcCount: config.npcCount }),
+        ...(config.npcClasses && { npcClasses: config.npcClasses }),
       },
     });
   }
@@ -653,6 +668,36 @@ export class WSClient {
     characterClass: "warrior" | "ranger" | "mage" | "rogue"
   ): Promise<{ id: string; name: string; class: string; level: number }> {
     return this.request("create_character", { name, class: characterClass });
+  }
+
+  /**
+   * Sync a character from local storage to server.
+   * Creates if doesn't exist, updates persona if it does.
+   */
+  syncCharacter(
+    character: {
+      id: string;
+      name: string;
+      class: "warrior" | "ranger" | "mage" | "rogue";
+      appearance: {
+        bodyType: "small" | "medium" | "large";
+        skinTone: string;
+        hairColor: string;
+        hairStyle: "bald" | "short" | "medium" | "long" | "ponytail";
+        facialHair?: "none" | "stubble" | "beard" | "mustache";
+      };
+      backstory?: string | null;
+    }
+  ): Promise<{
+    id: string;
+    name: string;
+    class: string;
+    level: number;
+    xp: number;
+    gold: number;
+    silver: number;
+  }> {
+    return this.request("sync_character", character);
   }
 }
 

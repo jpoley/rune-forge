@@ -71,6 +71,14 @@ export interface CreateGamePayload {
     difficulty: "easy" | "normal" | "hard";
     /** Turn time limit in seconds (0 = unlimited) */
     turnTimeLimit?: number;
+    /** Number of monsters to spawn */
+    monsterCount?: number;
+    /** Player move range override */
+    playerMoveRange?: number;
+    /** Number of NPC party members */
+    npcCount?: number;
+    /** Classes for NPC party members */
+    npcClasses?: string[];
   };
 }
 
@@ -219,7 +227,7 @@ export interface ChatReceivedPayload {
 
 /** DM command types */
 export type DMCommand =
-  | { command: "start_game" }
+  | { command: "start_game"; monsterTypes?: string[] }
   | { command: "pause_game" }
   | { command: "resume_game" }
   | { command: "end_game" }

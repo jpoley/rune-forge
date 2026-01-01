@@ -502,7 +502,7 @@ const MONSTER_DEFINITIONS: Record<string, { name: string; stats: Unit["stats"] }
   },
 };
 
-function getMonsterDefinition(monsterType: string): { name: string; stats: Unit["stats"] } | null {
+export function getMonsterDefinition(monsterType: string): { name: string; stats: Unit["stats"] } | null {
   return MONSTER_DEFINITIONS[monsterType] ?? null;
 }
 

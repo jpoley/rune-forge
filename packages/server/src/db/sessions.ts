@@ -21,7 +21,12 @@ export interface SessionConfig {
   difficulty: "easy" | "normal" | "hard";
   turnTimeLimit: number;
   monsterCount: number;
+  playerMoveRange: number;
   allowLateJoin: boolean;
+  /** Number of NPC party members */
+  npcCount: number;
+  /** Classes for NPC party members */
+  npcClasses: string[];
 }
 
 /**
@@ -214,7 +219,10 @@ export class SessionRepository {
       difficulty: config.difficulty ?? "normal",
       turnTimeLimit: config.turnTimeLimit ?? 0,
       monsterCount: config.monsterCount ?? 3,
+      playerMoveRange: config.playerMoveRange ?? 3,
       allowLateJoin: config.allowLateJoin ?? false,
+      npcCount: config.npcCount ?? 0,
+      npcClasses: config.npcClasses ?? [],
     };
 
     this.db.run(

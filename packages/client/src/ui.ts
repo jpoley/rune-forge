@@ -734,6 +734,7 @@ export class GameUI {
 
   /**
    * Update the initiative tracker display.
+   * Groups monsters to avoid long lists, shows current turn + players + monster summary.
    */
   updateInitiativeTracker(
     order: ReadonlyArray<InitiativeEntry>,
@@ -745,30 +746,94 @@ export class GameUI {
       this.initiativeList.removeChild(this.initiativeList.firstChild);
     }
 
+    // Get alive units in initiative order
+    const aliveUnits: Array<{ unit: Unit; index: number }> = [];
     for (let i = 0; i < order.length; i++) {
       const entry = order[i]!;
       const unit = units.find(u => u.id === entry.unitId);
-
-      if (!unit || unit.stats.hp <= 0) continue;
-
-      const div = document.createElement("div");
-      div.className = `initiative-entry ${unit.type}`;
-      if (i === currentIndex) {
-        div.classList.add("active");
+      if (unit && unit.stats.hp > 0) {
+        aliveUnits.push({ unit, index: i });
       }
+    }
 
-      // Create child elements safely
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = unit.name;
+    // Separate players and monsters
+    const players = aliveUnits.filter(e => e.unit.type === "player");
+    const monsters = aliveUnits.filter(e => e.unit.type === "monster");
 
-      const hpSpan = document.createElement("span");
-      hpSpan.textContent = `${unit.stats.hp}/${unit.stats.maxHp}`;
-
-      div.appendChild(nameSpan);
-      div.appendChild(hpSpan);
-
+    // Always show the current turn unit first (highlighted)
+    const currentEntry = aliveUnits.find(e => e.index === currentIndex);
+    if (currentEntry) {
+      const div = this.createInitiativeEntry(currentEntry.unit, true);
       this.initiativeList.appendChild(div);
     }
+
+    // Show all players (except if already shown as current)
+    for (const entry of players) {
+      if (entry.index === currentIndex) continue;
+      const div = this.createInitiativeEntry(entry.unit, false);
+      this.initiativeList.appendChild(div);
+    }
+
+    // Group monsters by type and show summary
+    if (monsters.length > 0) {
+      const monsterCounts = new Map<string, { count: number; totalHp: number; maxHp: number }>();
+      for (const entry of monsters) {
+        if (entry.index === currentIndex) continue; // Already shown
+        const name = entry.unit.name;
+        const existing = monsterCounts.get(name);
+        if (existing) {
+          existing.count++;
+          existing.totalHp += entry.unit.stats.hp;
+          existing.maxHp += entry.unit.stats.maxHp;
+        } else {
+          monsterCounts.set(name, {
+            count: 1,
+            totalHp: entry.unit.stats.hp,
+            maxHp: entry.unit.stats.maxHp,
+          });
+        }
+      }
+
+      // Show grouped monster entries
+      for (const [name, data] of monsterCounts) {
+        const div = document.createElement("div");
+        div.className = "initiative-entry monster grouped";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "init-name";
+        nameSpan.textContent = data.count > 1 ? `${name} ×${data.count}` : name;
+
+        const hpSpan = document.createElement("span");
+        hpSpan.className = "init-hp";
+        hpSpan.textContent = ` ${data.totalHp}/${data.maxHp}`; // Added space prefix
+
+        div.appendChild(nameSpan);
+        div.appendChild(hpSpan);
+        this.initiativeList.appendChild(div);
+      }
+    }
+  }
+
+  /**
+   * Create a single initiative entry div.
+   */
+  private createInitiativeEntry(unit: Unit, isActive: boolean): HTMLDivElement {
+    const div = document.createElement("div");
+    div.className = `initiative-entry ${unit.type}`;
+    if (isActive) {
+      div.classList.add("active");
+    }
+
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = unit.name;
+
+    const hpSpan = document.createElement("span");
+    hpSpan.textContent = `${unit.stats.hp}/${unit.stats.maxHp}`;
+
+    div.appendChild(nameSpan);
+    div.appendChild(hpSpan);
+
+    return div;
   }
 
   /**

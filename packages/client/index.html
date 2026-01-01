@@ -292,6 +292,40 @@
       transform: scale(1.05);
     }
 
+    #start-screen .subtitle {
+      color: #888;
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+
+    .mode-selection {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .mode-btn {
+      min-width: 220px;
+    }
+
+    .single-player-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .back-btn {
+      background: transparent !important;
+      border-color: #444 !important;
+      font-size: 14px !important;
+      padding: 10px 30px !important;
+      margin-top: 10px;
+    }
+
+    .back-btn:hover {
+      border-color: #666 !important;
+    }
+
     /* Loading */
     .loading {
       position: absolute;
@@ -1314,6 +1348,85 @@
       border: 1px solid rgba(74, 170, 102, 0.3);
     }
 
+    /* Lobby Monster Selection */
+    .lobby-monster-section {
+      width: 100%;
+      margin: 20px 0;
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+    }
+
+    .lobby-monster-section h3 {
+      font-size: 18px;
+      color: #f44;
+      margin-bottom: 10px;
+    }
+
+    .lobby-monster-section .selection-info {
+      color: #888;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+
+    .lobby-monster-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .lobby-monster-card {
+      background: #3a2a2a;
+      border: 2px solid #533;
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .lobby-monster-card:hover {
+      border-color: #866;
+      transform: translateY(-2px);
+    }
+
+    .lobby-monster-card.selected {
+      border-color: #a44;
+      background: #4a2a2a;
+      box-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+    }
+
+    .lobby-monster-card .sprite-container {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 6px;
+      background: #1a1a1e;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .lobby-monster-card .sprite-container img {
+      max-width: 100%;
+      max-height: 100%;
+      image-rendering: pixelated;
+    }
+
+    .lobby-monster-card .sprite-placeholder {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+
+    .lobby-monster-card .name {
+      font-size: 11px;
+      font-weight: bold;
+      color: #ddd;
+    }
+
     /* Loading Screen */
     .loading-screen .spinner {
       width: 50px;
@@ -1507,6 +1620,63 @@
       border-top: 1px solid #444;
       padding-top: 10px;
     }
+
+    /* Enhanced Character Selection with Sprites */
+    .character-item.with-sprite {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 15px;
+      margin: 8px 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #444;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .character-item.with-sprite:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #4a6;
+      transform: translateX(3px);
+    }
+
+    .character-sprite {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      background: #1a1a2e;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .character-sprite img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+
+    .character-sprite .sprite-placeholder {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    .character-item.with-sprite .character-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .character-class-desc {
+      font-size: 11px;
+      color: #4a6;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -1550,6 +1720,7 @@
           <button class="action-button" id="btn-sleep">💤 Sleep</button>
           <button class="action-button" id="btn-end-turn">End Turn</button>
           <button class="action-button pause-btn" id="btn-pause">⏸ Pause</button>
+          <button class="action-button dm-btn" id="btn-dm">🎲 DM</button>
           <button class="action-button settings-btn" id="btn-settings">⚙ Settings</button>
         </div>
 
@@ -1593,6 +1764,23 @@
           </div>
         </div>
 
+        <div id="dm-panel" style="display: none;">
+          <h3>🎲 DM Options</h3>
+          <div class="dm-description">Grant items to player</div>
+          <div class="settings-label dm-label">Gold</div>
+          <div class="dm-gold-buttons">
+            <button class="dm-gold-btn" data-amount="10">+10 Gold</button>
+            <button class="dm-gold-btn" data-amount="50">+50 Gold</button>
+            <button class="dm-gold-btn" data-amount="100">+100 Gold</button>
+          </div>
+          <div class="dm-divider"></div>
+          <div class="settings-label dm-label">Weapons</div>
+          <div id="dm-weapon-buttons"></div>
+          <div class="dm-divider"></div>
+          <div class="settings-label dm-label">Sleep Heal Amount</div>
+          <input type="number" id="dm-sleep-heal" class="form-input" value="5" min="1" max="100" style="width: 80px;">
+        </div>
+
         <div id="shop-panel" style="display: none;">
           <h3>🏪 Warez Merchant</h3>
           <div class="shop-gold">Your Gold: <span id="shop-gold-display">0</span></div>
@@ -1629,8 +1817,16 @@
 
       <div id="start-screen">
         <h1>⚔️ Rune Forge</h1>
-        <button class="menu-button" id="btn-new-game">New Game</button>
-        <button class="menu-button" id="btn-load-game">Load Game</button>
+        <p class="subtitle">Tactical Turn-Based RPG</p>
+        <div class="mode-selection" id="mode-selection">
+          <button class="menu-button mode-btn" id="btn-single-player">🎮 Single Player</button>
+          <button class="menu-button mode-btn" id="btn-multiplayer">🌐 Multiplayer</button>
+        </div>
+        <div class="single-player-menu" id="single-player-menu" style="display: none;">
+          <button class="menu-button" id="btn-new-game">New Game</button>
+          <button class="menu-button" id="btn-load-game">Load Game</button>
+          <button class="menu-button back-btn" id="btn-back-to-mode">← Back</button>
+        </div>
       </div>
 
       <div id="character-select">

@@ -93,27 +93,71 @@ export const CHARACTER_CLASSES: CharacterClass[] = [
 ];
 
 export const MONSTER_TYPES: MonsterType[] = [
+  // Base monsters (matching server dm-commands.ts)
   {
     id: "goblin",
     name: "Goblin",
     sprite: "/sprites/monsters/goblin.svg",
     color: 0x88aa44,
-    stats: { hp: 20, attack: 5, defense: 2, initiative: 10, moveRange: 4, attackRange: 1 },
+    stats: { hp: 6, attack: 2, defense: 1, initiative: 4, moveRange: 4, attackRange: 1 },
+  },
+  {
+    id: "goblin_archer",
+    name: "Goblin Archer",
+    sprite: "/sprites/monsters/goblin.svg", // Reuse goblin sprite
+    color: 0x99bb55,
+    stats: { hp: 4, attack: 3, defense: 0, initiative: 3, moveRange: 3, attackRange: 4 },
   },
   {
     id: "orc",
     name: "Orc",
     sprite: "/sprites/monsters/orc.svg",
     color: 0x556633,
-    stats: { hp: 35, attack: 8, defense: 4, initiative: 8, moveRange: 3, attackRange: 1 },
+    stats: { hp: 12, attack: 4, defense: 2, initiative: 2, moveRange: 3, attackRange: 1 },
+  },
+  {
+    id: "orc_warlord",
+    name: "Orc Warlord",
+    sprite: "/sprites/monsters/orc.svg", // Reuse orc sprite
+    color: 0x445522,
+    stats: { hp: 20, attack: 5, defense: 3, initiative: 3, moveRange: 3, attackRange: 1 },
   },
   {
     id: "skeleton",
     name: "Skeleton",
     sprite: "/sprites/monsters/skeleton.svg",
     color: 0xddddcc,
-    stats: { hp: 25, attack: 6, defense: 3, initiative: 9, moveRange: 3, attackRange: 1 },
+    stats: { hp: 8, attack: 3, defense: 2, initiative: 2, moveRange: 3, attackRange: 1 },
   },
+  {
+    id: "skeleton_archer",
+    name: "Skeleton Archer",
+    sprite: "/sprites/monsters/skeleton.svg", // Reuse skeleton sprite
+    color: 0xccccbb,
+    stats: { hp: 6, attack: 3, defense: 1, initiative: 3, moveRange: 2, attackRange: 5 },
+  },
+  {
+    id: "wolf",
+    name: "Dire Wolf",
+    sprite: "/sprites/monsters/gnoll.svg", // Use gnoll as wolf-like
+    color: 0x666666,
+    stats: { hp: 8, attack: 3, defense: 1, initiative: 5, moveRange: 5, attackRange: 1 },
+  },
+  {
+    id: "troll",
+    name: "Troll",
+    sprite: "/sprites/monsters/troll.svg",
+    color: 0x446644,
+    stats: { hp: 25, attack: 6, defense: 2, initiative: 1, moveRange: 2, attackRange: 1 },
+  },
+  {
+    id: "dragon_wyrmling",
+    name: "Dragon Wyrmling",
+    sprite: "/sprites/monsters/beholder.svg", // Use beholder for now
+    color: 0xcc4444,
+    stats: { hp: 30, attack: 7, defense: 4, initiative: 3, moveRange: 4, attackRange: 3 },
+  },
+  // Legacy monsters (for single-player mode compatibility)
   {
     id: "kobold",
     name: "Kobold",
@@ -136,13 +180,6 @@ export const MONSTER_TYPES: MonsterType[] = [
     stats: { hp: 50, attack: 12, defense: 6, initiative: 6, moveRange: 3, attackRange: 1 },
   },
   {
-    id: "troll",
-    name: "Troll",
-    sprite: "/sprites/monsters/troll.svg",
-    color: 0x446644,
-    stats: { hp: 60, attack: 10, defense: 4, initiative: 5, moveRange: 3, attackRange: 1 },
-  },
-  {
     id: "beholder",
     name: "Beholder",
     sprite: "/sprites/monsters/beholder.svg",
@@ -157,6 +194,12 @@ export function getCharacterClass(id: string): CharacterClass | undefined {
 
 export function getMonsterType(id: string): MonsterType | undefined {
   return MONSTER_TYPES.find(m => m.id === id);
+}
+
+/** Lookup monster type by name (case-insensitive). */
+export function getMonsterTypeByName(name: string): MonsterType | undefined {
+  const lowerName = name.toLowerCase();
+  return MONSTER_TYPES.find(m => m.name.toLowerCase() === lowerName);
 }
 
 export function getRandomMonsterTypes(count: number): MonsterType[] {
